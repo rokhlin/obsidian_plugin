@@ -1,16 +1,25 @@
 /* Mobile Action Modal Styling */
-.obsidian-sync-ai-action-modal .tree-item-self {
-  border-radius: var(--radius-s);
-  transition: background-color 0.15s ease-in-out;
-  cursor: pointer;
+.obsidian-sync-ai-action-modal .ai-action-btn {
+  border-radius: var(--radius-m, 6px);
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, transform 0.08s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.obsidian-sync-ai-action-modal .tree-item-self:hover {
-  background-color: var(--background-modifier-hover);
+.obsidian-sync-ai-action-modal .ai-action-btn:hover {
+  background-color: var(--background-modifier-hover) !important;
+  border-color: var(--interactive-accent) !important;
 }
 
-.obsidian-sync-ai-action-modal .tree-item-self:active {
-  background-color: var(--background-modifier-active-hover);
+.obsidian-sync-ai-action-modal .ai-action-btn:active {
+  background-color: var(--background-modifier-active-hover) !important;
+  transform: scale(0.97);
+}
+
+.obsidian-sync-ai-action-modal .ai-prompt-input:focus {
+  border-color: var(--interactive-accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
 /* Voice Recorder Modal Styling */

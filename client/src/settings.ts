@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   syncDebounceSeconds: 3,
   autoSyncOnStartup: true,
   autoSyncOnSave: true,
-  aiModel: "gemini-2.5-flash",
+  aiModel: "gemini-3.5-flash-lite",
 };
 
 export class SettingsTab extends PluginSettingTab {

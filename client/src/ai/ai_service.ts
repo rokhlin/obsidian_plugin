@@ -20,6 +20,10 @@ export class AiService {
     new Notice("🧠 Analyzing note and generating metadata...");
     try {
       const content = await this.app.vault.read(file);
+      if (!content.trim()) {
+        new Notice("⚠️ Note is empty. Add content before generating metadata.");
+        return;
+      }
       
       // Collect existing tags across vault
       const existingTagsSet = new Set<string>();
@@ -76,13 +80,18 @@ export class AiService {
       return;
     }
 
-    const selectedText = editor.getSelection();
-    if (!selectedText.trim()) {
-      new Notice("⚠️ Please select some text in the editor first.");
+    const selection = editor.getSelection();
+    const isSelection = Boolean(selection && selection.trim().length > 0);
+    const targetText = isSelection ? selection : editor.getValue();
+
+    if (!targetText.trim()) {
+      new Notice("⚠️ Active note is empty.");
       return;
     }
 
-    new Notice("✨ Improving selected text...");
+    const noteContext = editor.getValue();
+
+    new Notice(isSelection ? "✨ Improving selected text..." : "✨ Improving note text...");
     try {
       const response = await fetch(`${serverUrl}/api/ai/edit`, {
         method: "POST",
@@ -92,8 +101,9 @@ export class AiService {
           "X-Auth-Token": authToken,
         },
         body: JSON.stringify({
-          text: selectedText,
+          text: targetText,
           prompt: customInstructions || "Fix grammar and improve style",
+          context: noteContext,
         }),
       });
 
@@ -101,7 +111,6 @@ export class AiService {
         throw new Error(`AI Edit returned HTTP ${response.status}`);
       }
 
-      // Stream SSE chunks
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("Unable to read response stream");
@@ -109,7 +118,7 @@ export class AiService {
 
       const decoder = new TextDecoder();
       let replacement = "";
-      editor.replaceSelection(""); // clear selection and start streaming in place
+      let streamError: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -123,17 +132,39 @@ export class AiService {
             if (dataStr === "[DONE]") continue;
             try {
               const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                streamError = parsed.error;
+                break;
+              }
               if (parsed.chunk) {
                 replacement += parsed.chunk;
-                editor.replaceSelection(parsed.chunk);
               }
             } catch {
-              // Non-JSON SSE string
+              if (dataStr && !dataStr.startsWith("{")) {
+                replacement += dataStr;
+              }
             }
           }
         }
+        if (streamError) break;
       }
-      new Notice("✅ Text correction complete!");
+
+      if (streamError) {
+        throw new Error(streamError);
+      }
+
+      if (!replacement.trim()) {
+        throw new Error("AI returned empty response. Original text preserved.");
+      }
+
+      // Safe, atomic replacement only after complete and successful generation
+      if (isSelection) {
+        editor.replaceSelection(replacement.trim());
+      } else {
+        editor.setValue(replacement.trim());
+      }
+
+      new Notice("✅ Text improved successfully!");
     } catch (err: any) {
       console.error("AI Edit error:", err);
       new Notice(`❌ AI Edit error: ${err.message || err}`);
@@ -171,6 +202,9 @@ export class AiService {
     if (!reader) throw new Error("Unable to read response stream");
 
     const decoder = new TextDecoder();
+    let streamError: string | null = null;
+    let receivedChunks = 0;
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -182,14 +216,31 @@ export class AiService {
           if (dataStr === "[DONE]") continue;
           try {
             const parsed = JSON.parse(dataStr);
+            if (parsed.error) {
+              streamError = parsed.error;
+              break;
+            }
             if (parsed.chunk) {
+              receivedChunks++;
               onChunk(parsed.chunk);
             }
           } catch {
-            // raw text fallback
+            if (dataStr && !dataStr.startsWith("{")) {
+              receivedChunks++;
+              onChunk(dataStr);
+            }
           }
         }
       }
+      if (streamError) break;
+    }
+
+    if (streamError) {
+      throw new Error(streamError);
+    }
+
+    if (receivedChunks === 0) {
+      throw new Error("AI returned empty response. Please try again.");
     }
   }
 

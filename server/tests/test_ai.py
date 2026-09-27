@@ -1,6 +1,8 @@
 import pytest
 import io
+import inspect
 from httpx import AsyncClient
+from app.services.ai_service import ai_service
 
 
 @pytest.mark.asyncio
@@ -23,6 +25,7 @@ async def test_ai_edit_streaming(client: AsyncClient, auth_headers: dict):
     payload = {
         "text": "This text has bad grammer and need fix.",
         "prompt": "Fix spelling and grammar",
+        "context": "Full note content with details about the project.",
     }
     resp = await client.post("/api/ai/edit", headers=auth_headers, json=payload)
     assert resp.status_code == 200
@@ -53,3 +56,18 @@ async def test_ai_audio_transcription(client: AsyncClient, auth_headers: dict):
     data = resp.json()
     assert "text" in data
     assert len(data["text"]) > 0
+
+
+def test_prompt_system_instruction_markdown_and_direct_result():
+    source = inspect.getsource(ai_service.stream_prompt)
+    assert "Output format MUST be clean, valid Markdown (MD)" in source
+    assert "DIRECT RESULT ONLY" in source
+    assert "conversational pleasantries" in source
+
+
+def test_transcribe_instruction_intent_content_separation():
+    source = inspect.getsource(ai_service.transcribe_audio)
+    assert "DIRECTIVE VS CONTENT SEPARATION" in source
+    assert "Extract the formatting/structural instruction" in source
+    assert "Extract the substantive note items/content" in source
+    assert "Do NOT transcribe the meta-instruction command verbatim" in source

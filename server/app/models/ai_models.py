@@ -16,6 +16,7 @@ class MetadataResponse(BaseModel):
 class AiEditRequest(BaseModel):
     text: str
     prompt: Optional[str] = "Fix grammar and improve style"
+    context: Optional[str] = None
 
 
 class AiPromptRequest(BaseModel):
