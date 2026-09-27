@@ -60,25 +60,34 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Test Backend Connection")
-      .setDesc("Verify reachability and authentication with your backend")
+      .setName("Test Backend Connection & Auth")
+      .setDesc("Verify server reachability and validate your authentication token")
       .addButton((btn) =>
         btn.setButtonText("Test Connection").onClick(async () => {
           btn.setDisabled(true);
           btn.setButtonText("Testing...");
+          const token = (this.plugin.settings.authToken || "").trim();
+          if (!token) {
+            new Notice("⚠️ Please enter an Authentication Bearer Token first!");
+            btn.setDisabled(false);
+            btn.setButtonText("Test Connection");
+            return;
+          }
           try {
-            const url = `${this.plugin.settings.serverUrl}/api/health`;
+            const url = `${this.plugin.settings.serverUrl}/api/auth/verify`;
             const resp = await requestUrl({
               url,
               method: "GET",
               headers: {
-                Authorization: `Bearer ${this.plugin.settings.authToken}`,
-                "X-Auth-Token": this.plugin.settings.authToken,
+                Authorization: `Bearer ${token}`,
+                "X-Auth-Token": token,
               },
+              throw: false,
             });
             if (resp.status === 200) {
-              const data = resp.json;
-              new Notice(`✅ Connected! Service: ${data.service}, Port: ${data.port}`);
+              new Notice("✅ Success! Server connected and Token verified.");
+            } else if (resp.status === 401) {
+              new Notice("❌ Error 401: Token does not match AUTH_TOKEN on server!");
             } else {
               new Notice(`⚠️ Server returned HTTP ${resp.status}`);
             }

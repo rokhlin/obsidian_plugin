@@ -49,3 +49,15 @@ async def test_auth_authorized_with_x_auth_token(client: AsyncClient, auth_heade
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_auth_verify_endpoint(client: AsyncClient, auth_headers: dict):
+    # Success
+    resp = await client.get("/api/auth/verify", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "authenticated"
+
+    # Unauthorized
+    resp_bad = await client.get("/api/auth/verify", headers={"Authorization": "Bearer bad-token"})
+    assert resp_bad.status_code == 401

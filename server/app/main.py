@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.services.db_service import db_service
+from app.auth import verify_auth_token
 from app.routers import sync, ai
 
 
@@ -47,6 +48,15 @@ async def health_check():
         "port": settings.PORT,
         "environment": settings.ENVIRONMENT,
         "ai_ready": bool(settings.GEMINI_API_KEY),
+    }
+
+
+@app.get("/api/auth/verify", tags=["system"])
+async def verify_auth_endpoint(token: str = Depends(verify_auth_token)):
+    """Authenticated endpoint to verify that client token matches server AUTH_TOKEN."""
+    return {
+        "status": "authenticated",
+        "message": "Token is valid",
     }
 
 
