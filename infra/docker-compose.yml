@@ -1,0 +1,25 @@
+services:
+  obsidian-backend:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: obsidian-sync-ai-backend
+    restart: unless-stopped
+    ports:
+      - "5125:5125"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5125
+      - VAULT_PATH=/data/vault
+      - ARCHIVE_PATH=/data/archive
+      - CONFLICTS_PATH=/data/conflicts
+      - DB_PATH=/data/sync_manifest.db
+      - TEMP_DIR=/data/temp
+    env_file:
+      - ../data/config/.env
+    volumes:
+      - ../data/config:/data/config:ro
+      - ../data/vault:/data/vault
+      - ../data/archive:/data/archive
+      - ../data/conflicts:/data/conflicts
+      - ../data:/data

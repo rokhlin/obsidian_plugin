@@ -1,0 +1,154 @@
+# System Architecture Specification: Obsidian Mobile Plugin & Sync Backend
+
+## 1. Executive Overview
+
+The **Obsidian Plugin & Mobile Sync Backend** is an integrated knowledge-management system tailored for Obsidian on Android. It pairs a client-side TypeScript plugin with a self-hosted Python FastAPI backend to deliver:
+1. **Lightweight, Zero-Loss Bidirectional Synchronization**: State diffing via xxHash manifests, debounced auto-sync, client-priority conflict resolution with external server archiving (`data/conflicts/` and `data/archive/`).
+2. **AI-Assisted Note Workflows**: Google Gemini integration for YAML frontmatter generation, streaming inline text correction, and contextual note querying.
+3. **Voice Note Transcription**: Android microphone audio capture with streaming or batch transcription into Markdown at the cursor.
+4. **Zero-Port Exposure Security**: Hosted behind an existing Cloudflare Tunnel (`ob.alltogo.net`) routed to local port `5125` with secure header authentication.
+
+---
+
+## 2. High-Level Component Architecture
+
+```mermaid
+graph TD
+    subgraph MobileClient["Android Mobile (Obsidian App)"]
+        UI["Obsidian Mobile UI<br/>(Toolbar Button & Modal)"]
+        Editor["Obsidian Markdown Editor<br/>(Selection & Cursor)"]
+        HashEngine["xxhash-wasm Engine<br/>(Local Mtime & Hash Manifest)"]
+        AudioRec["MediaRecorder WebM/MP4<br/>(Voice Input)"]
+        PluginCore["Plugin Controller & Settings<br/>(Config: ob.alltogo.net, Token)"]
+    end
+
+    subgraph Tunnel["Network Transport"]
+        CFTunnel["Cloudflare Tunnel<br/>(ob.alltogo.net)"]
+    end
+
+    subgraph DockerHost["Docker Backend Host (Port 5125)"]
+        API["FastAPI REST & SSE Gateway<br/>(Auth Bearer & X-Auth-Token Guard)"]
+        SyncCtrl["Sync Controller<br/>(Manifest Diff & LWW Engine)"]
+        AiCtrl["AI Controller<br/>(Gemini 2.5 Flash / Whisper)"]
+        ManifestDB["SQLite Manifest DB<br/>(sync_manifest.db)"]
+        
+        subgraph Storage["Host Storage Volumes"]
+            LiveVault["Active Vault Directory<br/>(/data/vault)"]
+            ArchiveDir["Safe Archive Directory<br/>(/data/archive)"]
+            ConflictsDir["Conflict Backup Directory<br/>(/data/conflicts)"]
+            ConfigDir["Configuration Directory<br/>(/data/config/.env)"]
+        end
+    end
+
+    UI --> PluginCore
+    Editor --> PluginCore
+    AudioRec --> PluginCore
+    HashEngine --> PluginCore
+    PluginCore -->|"HTTPS / Secure Header"| CFTunnel
+    CFTunnel -->|"Reverse Proxy -> Port 5125"| API
+    API --> SyncCtrl
+    API --> AiCtrl
+    SyncCtrl --> ManifestDB
+    SyncCtrl --> LiveVault
+    SyncCtrl --> ArchiveDir
+    SyncCtrl --> ConflictsDir
+    ConfigDir -.->|"Injected Config"| API
+```
+
+---
+
+## 3. Topography & Directory Layout
+
+```text
+obsidian_plugin/
+├── client/                      # Obsidian Plugin (TypeScript)
+│   ├── src/
+│   │   ├── main.ts              # Plugin lifecycle (onload, registerRibbon, registerCommands)
+│   │   ├── settings.ts          # Plugin settings tab & storage
+│   │   ├── sync/                # Sync manager, xxhash-wasm manifest, diffing engine
+│   │   ├── ai/                  # AI service (metadata, streaming edit, prompt, audio)
+│   │   └── ui/                  # Mobile Action Modal, Voice recorder modal
+│   ├── package.json             # NPM dependencies (obsidian, xxhash-wasm, esbuild)
+│   ├── tsconfig.json
+│   ├── esbuild.config.mjs
+│   └── manifest.json            # Obsidian plugin manifest
+├── server/                      # FastAPI Backend (Python 3.11+)
+│   ├── app/
+│   │   ├── main.py              # FastAPI app initialization & CORS/Auth middlewares
+│   │   ├── config.py            # Pydantic Settings loading from data/config/.env
+│   │   ├── auth.py              # Bearer & secure header verification
+│   │   ├── routers/
+│   │   │   ├── sync.py          # /api/sync/status, /upload, /download, /delete
+│   │   │   └── ai.py            # /api/ai/metadata, /edit, /prompt, /transcribe
+│   │   ├── services/
+│   │   │   ├── sync_service.py  # Manifest diffing, LWW, conflict/archive handling
+│   │   │   ├── ai_service.py    # Gemini client & Whisper transcription
+│   │   │   └── db_service.py    # aiosqlite manifest persistence
+│   │   └── models/
+│   │       ├── sync_models.py   # Pydantic request/response schemas
+│   │       └── ai_models.py     # AI request/response schemas
+│   ├── tests/                   # Pytest automated test suites (>=75% coverage)
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   └── Dockerfile
+├── infra/                       # Infrastructure & Deployment
+│   └── docker-compose.yml       # Docker Compose mapping port 5125 and volumes
+├── data/                        # Local runtime data & config (excluded in .gitignore)
+│   ├── config/
+│   │   ├── .env.example         # Version-controlled configuration template
+│   │   └── .env                 # User credentials & paths (ignored)
+│   ├── vault/                   # Active synced Markdown notes
+│   ├── archive/                 # Soft-deleted notes
+│   └── conflicts/               # Preserved server conflict versions
+└── docs/                        # Project documentation suite
+    ├── technical_specification.md
+    ├── system_architecture.md
+    ├── roadmap.md
+    ├── dependencies.md
+    └── Changelog.md
+```
+
+---
+
+## 4. Synchronization Protocol & Conflict Strategy
+
+### 4.1. Handshake Flow (`POST /api/sync/status`)
+1. Client scans local vault, filtering notes with updated `mtime`.
+2. Client computes 64-bit `xxhash-wasm` on modified notes.
+3. Client posts `{ clientFiles: { path: hash }, deletedOnClient: [path] }`.
+4. Server reconciles client hashes with `sync_manifest.db`:
+   - Files deleted on client $\to$ moved to `/data/archive/<path>` and recorded in `acknowledgedDeletions`.
+   - Files with newer/different client hashes $\to$ returned in `toUpload`.
+   - Files present on server but missing/different on client $\to$ returned in `toDownload`.
+
+### 4.2. Safe Archiving & Conflict Avoidance
+- **Client Priority**: If a file is concurrently modified on both client and server, the client version takes precedence.
+- **Zero Data Loss Guarantee**: Before overwriting the server file during `POST /api/sync/upload`, the server copies the existing server file to `/data/conflicts/<filename>_conflict_<YYYYMMDD_HHMMSS>.md`.
+- **External Archive**: Both `/data/conflicts/` and `/data/archive/` reside strictly **outside** the active vault root (`/data/vault/`), ensuring desktop Obsidian and search engines never index stale or conflict files.
+
+---
+
+## 5. AI Capabilities & Streaming Protocols
+
+1. **Metadata Generation (`POST /api/ai/metadata`)**:
+   - Ingests full note content + list of existing vault tags.
+   - Prompts Gemini with structured output requirements to return `{ title, description, tags }`.
+   - Client updates/inserts standard YAML frontmatter `--- ... ---`.
+2. **Inline Text Correction (`POST /api/ai/edit`)**:
+   - Supports Server-Sent Events (SSE) `text/event-stream`.
+   - Streams corrected tokens directly into the Obsidian active editor selection.
+3. **Contextual Custom Prompt (`POST /api/ai/prompt`)**:
+   - Injects full open note context into the user's custom question.
+   - SSE streaming response for rapid user feedback.
+4. **Voice Transcription (`POST /api/ai/transcribe`)**:
+   - Accepts multipart audio (`audio/webm` or `audio/mp4`).
+   - Delegates to Google Gemini Audio or cloud Whisper API, returning formatted text.
+
+---
+
+## 6. Security, Authentication & Configuration
+
+- **Configuration Path**: All environment variables are loaded from `data/config/.env` using Pydantic Settings.
+- **Port Binding**: Host port `5125` $\to$ Docker container port `5125`.
+- **Pre-Shared Bearer Token**: All requests must supply `Authorization: Bearer <AUTH_TOKEN>` or `X-Auth-Token: <AUTH_TOKEN>`.
+- **Cloudflare Integration**: The tunnel handles TLS termination for `ob.alltogo.net`. The backend validates the authentication header before any request is processed.

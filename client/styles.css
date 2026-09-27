@@ -1,0 +1,30 @@
+/* Mobile Action Modal Styling */
+.obsidian-sync-ai-action-modal .tree-item-self {
+  border-radius: var(--radius-s);
+  transition: background-color 0.15s ease-in-out;
+  cursor: pointer;
+}
+
+.obsidian-sync-ai-action-modal .tree-item-self:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.obsidian-sync-ai-action-modal .tree-item-self:active {
+  background-color: var(--background-modifier-active-hover);
+}
+
+/* Voice Recorder Modal Styling */
+.obsidian-sync-ai-voice-modal .modal-button-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* AI Prompt Response Panel */
+.ai-prompt-response {
+  border: 1px solid var(--background-modifier-border);
+  font-family: var(--font-text);
+  line-height: var(--line-height-normal);
+  color: var(--text-normal);
+}
