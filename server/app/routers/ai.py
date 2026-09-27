@@ -22,7 +22,11 @@ async def generate_note_metadata(request: MetadataRequest):
 @router.post("/edit")
 async def edit_text_streaming(request: AiEditRequest):
     """Rewrite or correct selected text via SSE streaming."""
-    generator = ai_service.stream_edit(request.text, request.prompt or "Fix grammar and improve style")
+    generator = ai_service.stream_edit(
+        request.text,
+        request.prompt or "Fix grammar and improve style",
+        request.context,
+    )
     return StreamingResponse(generator, media_type="text/event-stream")
 
 

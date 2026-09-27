@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # AI Model Credentials (left for configuration after development)
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     TRANSCRIPTION_ENGINE: str = "cloud_gemini"
     OPENAI_API_KEY: Optional[str] = None
 

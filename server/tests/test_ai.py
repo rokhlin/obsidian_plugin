@@ -23,6 +23,7 @@ async def test_ai_edit_streaming(client: AsyncClient, auth_headers: dict):
     payload = {
         "text": "This text has bad grammer and need fix.",
         "prompt": "Fix spelling and grammar",
+        "context": "Full note content with details about the project.",
     }
     resp = await client.post("/api/ai/edit", headers=auth_headers, json=payload)
     assert resp.status_code == 200

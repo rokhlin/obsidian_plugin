@@ -42,7 +42,7 @@ export class MobileActionModal extends Modal {
     this.createActionButton(
       menuList,
       "✍️ Fix Text & Improve Style",
-      "Correct grammar and refine phrasing for selected text",
+      "Correct grammar and refine phrasing for note or selected text",
       async () => {
         if (!this.editor) {
           new Notice("⚠️ No active editor found.");
@@ -105,7 +105,19 @@ export class MobileActionModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl("h3", { text: "💬 Custom AI Prompt" });
+    const header = contentEl.createDiv({ cls: "modal-header" });
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.alignItems = "center";
+    header.style.marginBottom = "12px";
+
+    const titleEl = header.createEl("h3", { text: "💬 Custom AI Prompt" });
+    titleEl.style.margin = "0";
+
+    const backBtn = header.createEl("button", { text: "← Back" });
+    backBtn.onclick = () => {
+      this.onOpen();
+    };
 
     const inputArea = contentEl.createEl("textarea", {
       placeholder: "e.g., Summarize this note in 3 bullet points, or suggest next steps...",
@@ -116,9 +128,9 @@ export class MobileActionModal extends Modal {
     inputArea.style.marginBottom = "10px";
 
     const responseArea = contentEl.createDiv({ cls: "ai-prompt-response" });
-    responseArea.style.maxHeight = "160px";
+    responseArea.style.maxHeight = "200px";
     responseArea.style.overflowY = "auto";
-    responseArea.style.padding = "8px";
+    responseArea.style.padding = "10px";
     responseArea.style.backgroundColor = "var(--background-secondary)";
     responseArea.style.borderRadius = "4px";
     responseArea.style.display = "none";
@@ -133,34 +145,53 @@ export class MobileActionModal extends Modal {
 
     sendBtn.onclick = async () => {
       const promptText = inputArea.value.trim();
-      if (!promptText) return;
+      if (!promptText) {
+        new Notice("⚠️ Please enter a prompt first.");
+        return;
+      }
 
       sendBtn.setDisabled(true);
-      sendBtn.setText("Generating...");
+      sendBtn.setText("Thinking... ⏳");
       responseArea.style.display = "block";
-      responseArea.setText("");
+      responseArea.style.color = "var(--text-muted)";
+      responseArea.setText("Thinking... 🤖✨");
+      insertBtn.style.display = "none";
       accumulatedText = "";
 
-      const context = this.file ? await this.app.vault.read(this.file) : "";
+      const context = this.editor
+        ? this.editor.getValue()
+        : (this.file ? await this.app.vault.read(this.file) : "");
+
+      let hasReceivedFirstChunk = false;
 
       try {
         await this.plugin.aiService.promptWithContext(promptText, context, (chunk) => {
+          if (!hasReceivedFirstChunk) {
+            hasReceivedFirstChunk = true;
+            responseArea.style.color = "var(--text-normal)";
+            responseArea.setText("");
+          }
           accumulatedText += chunk;
           responseArea.setText(accumulatedText);
           responseArea.scrollTop = responseArea.scrollHeight;
         });
         insertBtn.style.display = "inline-block";
       } catch (err: any) {
-        responseArea.setText(`Error: ${err.message || err}`);
+        responseArea.style.color = "var(--text-error, #e53935)";
+        responseArea.setText(`❌ Error: ${err.message || err}`);
+        new Notice(`❌ AI Query Error: ${err.message || err}`);
       } finally {
         sendBtn.setDisabled(false);
-        sendBtn.setText("Ask Another");
+        sendBtn.setText("Send Query");
       }
     };
 
     insertBtn.onclick = () => {
       if (this.editor && accumulatedText) {
-        this.editor.replaceRange(`\n\n> [!AI Response]\n> ${accumulatedText.split("\n").join("\n> ")}\n\n`, this.editor.getCursor());
+        this.editor.replaceRange(
+          `\n\n> [!AI Response]\n> ${accumulatedText.split("\n").join("\n> ")}\n\n`,
+          this.editor.getCursor()
+        );
         new Notice("✅ AI response inserted into note!");
         this.close();
       }
