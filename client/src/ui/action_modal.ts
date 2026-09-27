@@ -26,7 +26,7 @@ export class MobileActionModal extends Modal {
     // Action 1: Metadata Generation
     this.createActionButton(
       menuList,
-      "🏷️ Generate Metadata (Frontmatter)",
+      "🏷️ Generate Metadata",
       "Auto-generate title, description, and tags from note content",
       async () => {
         if (!this.file) {
@@ -41,7 +41,7 @@ export class MobileActionModal extends Modal {
     // Action 2: Text Correction
     this.createActionButton(
       menuList,
-      "✍️ Fix Text & Improve Style",
+      "✍️ Fix & Improve",
       "Correct grammar and refine phrasing for note or selected text",
       async () => {
         if (!this.editor) {
@@ -56,7 +56,7 @@ export class MobileActionModal extends Modal {
     // Action 3: Custom AI Prompt
     this.createActionButton(
       menuList,
-      "💬 Custom AI Prompt",
+      "💬 AI Prompt",
       "Query AI using the full open note as context",
       () => {
         this.renderPromptView();
@@ -66,7 +66,7 @@ export class MobileActionModal extends Modal {
     // Action 4: Voice Input
     this.createActionButton(
       menuList,
-      "🎙️ Voice Input (Transcribe)",
+      "🎙️ Voice Input",
       "Record audio via microphone and insert transcribed text",
       () => {
         if (!this.editor) {
