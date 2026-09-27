@@ -27,6 +27,7 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
+server/tests/tmp_test_data/
 
 # OS & Editor
 .DS_Store
