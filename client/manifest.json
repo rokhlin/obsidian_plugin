@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-sync-ai",
+  "name": "Mobile Sync & AI Assistant",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Zero-loss synchronization to self-hosted server and AI writing/voice assistant for Obsidian Android.",
+  "author": "AI Agent",
+  "isDesktopOnly": false
+}

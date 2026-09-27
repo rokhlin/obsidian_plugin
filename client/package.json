@@ -1,0 +1,30 @@
+{
+  "name": "obsidian-sync-ai",
+  "version": "1.0.0",
+  "description": "Zero-loss synchronization to self-hosted server and AI writing/voice assistant for Obsidian Android.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "sync",
+    "ai",
+    "gemini",
+    "whisper"
+  ],
+  "author": "AI Agent",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "esbuild": "^0.23.0",
+    "obsidian": "^1.7.2",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.3"
+  },
+  "dependencies": {
+    "xxhash-wasm": "^1.1.0"
+  }
+}
