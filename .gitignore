@@ -1,10 +1,18 @@
 # User environment & credentials
+server/data/config/.env
 data/config/.env
 *.env
 !.env.example
+!server/data/config/.env.example
 !data/config/.env.example
 
 # Runtime and local storage data
+server/data/vault/
+server/data/archive/
+server/data/conflicts/
+server/data/*.db
+server/data/*.sqlite*
+server/data/temp/
 data/vault/
 data/archive/
 data/conflicts/

@@ -16,10 +16,10 @@ services:
       - DB_PATH=/data/sync_manifest.db
       - TEMP_DIR=/data/temp
     env_file:
-      - ../data/config/.env
+      - ../server/data/config/.env
     volumes:
-      - ../data/config:/data/config:ro
-      - ../data/vault:/data/vault
-      - ../data/archive:/data/archive
-      - ../data/conflicts:/data/conflicts
-      - ../data:/data
+      - ../server/data/config:/data/config:ro
+      - ../server/data/vault:/data/vault
+      - ../server/data/archive:/data/archive
+      - ../server/data/conflicts:/data/conflicts
+      - ../server/data:/data

@@ -4,17 +4,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def find_env_file() -> Path:
-    """Locate the .env file in data/config/ across local and containerized environments."""
+    """Locate the .env file in server/data/config/ across local and containerized environments."""
+    server_dir = Path(__file__).resolve().parent.parent
+    repo_root = server_dir.parent
     candidates = [
         Path("/data/config/.env"),
-        Path(__file__).resolve().parent.parent.parent / "data" / "config" / ".env",
+        server_dir / "data" / "config" / ".env",
+        repo_root / "server" / "data" / "config" / ".env",
+        repo_root / "data" / "config" / ".env",
+        Path.cwd() / "server" / "data" / "config" / ".env",
         Path.cwd() / "data" / "config" / ".env",
-        Path.cwd().parent / "data" / "config" / ".env",
     ]
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    return candidates[1]  # default fallback
+    return server_dir / "data" / "config" / ".env"
 
 
 ENV_FILE_PATH = find_env_file()
