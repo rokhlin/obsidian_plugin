@@ -176,11 +176,14 @@ class AiService:
             return
 
         prompt = (
-            "You are an AI assistant in Obsidian. The user has provided context from their active note.\n\n"
+            "You are an expert Obsidian assistant. The user has provided context from their active note.\n\n"
             f"Note Context:\n{context[:12000] if context else '(No active note context provided)'}\n\n"
-            f"User Question/Prompt: {user_prompt}\n\n"
-            "Answer clearly and concisely based on the context (or general knowledge if context does not contain the answer). "
-            "Use clean Markdown formatting."
+            f"User Query/Prompt:\n{user_prompt}\n\n"
+            "OUTPUT FORMAT & BEHAVIORAL REQUIREMENTS:\n"
+            "1. Output format MUST be clean, valid Markdown (MD).\n"
+            "2. DIRECT RESULT ONLY: Output strictly the direct content or answer requested. Do NOT include conversational pleasantries, chatter, introductory preambles (e.g. 'Sure, here is...', 'Here is the summary:'), or concluding postambles (e.g. 'I hope this helps!', 'Let me know if you need more help.').\n"
+            "3. If the user prompt asks for a specific structure (e.g. checklist, table, bullet points, headers), apply it directly in Markdown.\n"
+            "4. Only provide meta-explanations if the user explicitly asks for an explanation or conversation."
         )
 
         candidate_models = self._get_candidate_models()
@@ -227,13 +230,29 @@ class AiService:
             part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
             candidate_models = self._get_candidate_models()
 
+            transcribe_instruction = (
+                "You are an expert voice-to-note transcriber and organizer for Obsidian.\n\n"
+                "Listen carefully to the audio recording. Analyze the spoken content to separate any structural, formatting, or task directives from the actual note content.\n\n"
+                "CRITICAL INSTRUCTIONS - DIRECTIVE VS CONTENT SEPARATION:\n"
+                "1. Formatting / Structural Directives:\n"
+                "   The speaker may begin or include instructions on how the note should be organized or formatted (for example: 'сделай из заметки список покупок: ...', 'make a shopping list out of this: ...', 'format as a checklist: ...', 'create bullet points for: ...', 'сделай чек-лист задач: ...', 'структурируй по пунктам: ...').\n"
+                "   - Extract the formatting/structural instruction.\n"
+                "   - Extract the substantive note items/content dictated by the user.\n"
+                "   - Apply the requested structure directly (e.g., render as a Markdown task checklist `- [ ] item`, bulleted list `- item`, numbered list, or headings).\n"
+                "   - Do NOT transcribe the meta-instruction command verbatim (e.g. do NOT include 'Сделай из заметки список покупок' in the output; output only the resulting structured list).\n\n"
+                "2. Plain Dictation:\n"
+                "   If the speaker is simply dictating thoughts, notes, or ideas without formatting directives, transcribe the audio accurately into clean, well-punctuated Markdown text and paragraphs.\n\n"
+                "3. Direct Markdown Output:\n"
+                "   Output strictly the resulting Markdown note. Do NOT include conversational pleasantries, introductory remarks ('Here is your shopping list:'), or concluding chatter."
+            )
+
             for model in candidate_models:
                 try:
                     response = await loop.run_in_executor(
                         None,
                         lambda m=model: client.models.generate_content(
                             model=m,
-                            contents=["Please transcribe this voice recording accurately into clean Markdown text:", part],
+                            contents=[transcribe_instruction, part],
                         ),
                     )
                     if response and response.text:
