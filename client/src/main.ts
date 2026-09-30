@@ -65,6 +65,24 @@ export default class ObsidianSyncAiPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "protect-note-toggle",
+      name: "Protect or unlock note (Lock / Encrypt)",
+      callback: async () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile instanceof TFile) {
+          const isEncrypted = await this.protectedNoteService.isNoteEncrypted(activeFile);
+          if (isEncrypted) {
+            await this.protectedNoteService.promptAndUnlockNote(activeFile);
+          } else {
+            await this.protectedNoteService.promptAndEncryptNote(activeFile);
+          }
+        } else {
+          new Notice("⚠️ Please open a note to protect or unlock.");
+        }
+      },
+    });
+
+    this.addCommand({
       id: "encrypt-current-note",
       name: "Encrypt current note with password",
       callback: () => {
