@@ -1,0 +1,11 @@
+{
+  "name": "obsidian-plugin-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root workspace runner for Obsidian Mobile Plugin & Backend",
+  "scripts": {
+    "build": "npm --prefix client run build",
+    "test": "npm --prefix client test",
+    "dev": "npm --prefix client run dev"
+  }
+}
