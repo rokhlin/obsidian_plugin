@@ -25,6 +25,7 @@ node_modules/
 client/node_modules/
 dist/
 client/main.js
+client/client_crypto_test_bundle.js
 
 # Python
 __pycache__/

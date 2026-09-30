@@ -37,3 +37,40 @@
   line-height: var(--line-height-normal);
   color: var(--text-normal);
 }
+
+/* Protected & Encrypted Notes Styling */
+.encrypted-note-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--background-primary);
+}
+
+.encrypted-note-topbar {
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+}
+
+.encrypted-note-topbar button {
+  min-height: 34px;
+  font-size: 0.88em;
+}
+
+.encrypted-note-textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.encrypted-note-password-modal .setting-item {
+  border: none;
+  padding: 10px 0;
+}
+
+.encrypted-note-password-modal input[type="password"],
+.encrypted-note-password-modal input[type="text"] {
+  min-height: 38px;
+  font-size: 1em;
+}
+

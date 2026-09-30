@@ -3,17 +3,27 @@ import { PluginSettings, DEFAULT_SETTINGS, SettingsTab } from "./settings";
 import { SyncManager } from "./sync/sync_manager";
 import { AiService } from "./ai/ai_service";
 import { MobileActionModal } from "./ui/action_modal";
+import { ProtectedNoteService } from "./crypto/protected_note_service";
+import { EncryptedNoteView, VIEW_TYPE_ENCRYPTED_NOTE } from "./ui/encrypted_note_view";
 
 export default class ObsidianSyncAiPlugin extends Plugin {
   settings!: PluginSettings;
   syncManager!: SyncManager;
   aiService!: AiService;
+  protectedNoteService!: ProtectedNoteService;
 
   async onload(): Promise<void> {
     await this.loadSettings();
 
     this.syncManager = new SyncManager(this.app, this);
     this.aiService = new AiService(this.app, this);
+    this.protectedNoteService = new ProtectedNoteService(this.app, this);
+
+    // 0. Register Custom Protected Note View
+    this.registerView(
+      VIEW_TYPE_ENCRYPTED_NOTE,
+      (leaf) => new EncryptedNoteView(leaf, this)
+    );
 
     // 1. Settings Tab
     this.addSettingTab(new SettingsTab(this.app, this));
@@ -37,6 +47,36 @@ export default class ObsidianSyncAiPlugin extends Plugin {
       name: "Sync Vault Now",
       callback: async () => {
         await this.syncManager.performSync(true);
+      },
+    });
+
+    this.addCommand({
+      id: "encrypt-current-note",
+      name: "🔒 Encrypt Current Note with Password",
+      checkCallback: (checking: boolean) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile instanceof TFile) {
+          if (!checking) {
+            this.protectedNoteService.promptAndEncryptNote(activeFile);
+          }
+          return true;
+        }
+        return false;
+      },
+    });
+
+    this.addCommand({
+      id: "unlock-current-note",
+      name: "🔓 Unlock Protected Note",
+      checkCallback: (checking: boolean) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile instanceof TFile) {
+          if (!checking) {
+            this.protectedNoteService.promptAndUnlockNote(activeFile);
+          }
+          return true;
+        }
+        return false;
       },
     });
 
@@ -86,6 +126,18 @@ export default class ObsidianSyncAiPlugin extends Plugin {
         this.syncManager.performSync(false);
       });
     }
+
+    // 6. Protected Note Auto-Detection on File Open
+    this.registerEvent(
+      this.app.workspace.on("file-open", async (file) => {
+        if (file instanceof TFile) {
+          const isEncrypted = await this.protectedNoteService.isNoteEncrypted(file);
+          if (isEncrypted) {
+            new Notice("🔒 Protected Note detected. Run 'Unlock Protected Note' or tap Action Menu to view.", 4000);
+          }
+        }
+      })
+    );
 
     console.log("Obsidian Mobile Sync & AI Plugin loaded successfully.");
   }

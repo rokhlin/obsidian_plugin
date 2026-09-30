@@ -152,3 +152,37 @@ obsidian_plugin/
 - **Port Binding**: Host port `5125` $\to$ Docker container port `5125`.
 - **Pre-Shared Bearer Token**: All requests must supply `Authorization: Bearer <AUTH_TOKEN>` or `X-Auth-Token: <AUTH_TOKEN>`.
 - **Cloudflare Integration**: The tunnel handles TLS termination for `ob.alltogo.net`. The backend validates the authentication header before any request is processed.
+
+---
+
+## 7. Protected & Encrypted Notes Subsystem
+
+### 7.1. Zero-Knowledge Cryptographic Model
+- **Native Web Crypto**: Uses browser-native `crypto.subtle` available in Android WebView, requiring zero third-party cryptographic binaries.
+- **Key Derivation (PBKDF2)**: HMAC-SHA256 with 100,000 iterations and a 16-byte cryptographically secure random salt generated via `crypto.getRandomValues()`.
+- **Cipher (AES-256-GCM)**: 256-bit symmetric key with a 12-byte random Initialization Vector (IV). The 128-bit authentication tag ensures data integrity and prevents undetected tampering.
+
+### 7.2. In-Memory Editor & Disk Leak Prevention
+- **Obsidian Auto-Save Isolation**: Unlocked notes render inside a custom `EncryptedNoteView` leaf (`ItemView`) rather than standard `MarkdownView`. This completely disconnects the plaintext buffer from Obsidian's background disk-writing engine.
+- **Armored Storage Format**: The `.md` file retains standard YAML frontmatter with `encrypted: true` for tag and file indexing, while the body contains ASCII-armored ciphertext:
+  ```markdown
+  ---
+  encrypted: true
+  title: Protected Note
+  tags: [secure]
+  ---
+  -----BEGIN PROTECTED NOTE-----
+  Salt: <Base64 Salt>
+  IV: <Base64 IV>
+
+  <Base64 Ciphertext + Tag>
+  -----END PROTECTED NOTE-----
+  ```
+- **Lifecycle & Auto-Lock**: Plaintext buffers and derived keys are automatically wiped from memory:
+  - After 5 minutes of inactivity (`setTimeout` reset on keystrokes).
+  - When the mobile app is minimized or sent to the background (`document.visibilityState === 'hidden'`).
+  - Upon clicking `[ 🔒 Lock ]` or closing the tab.
+- **Re-encryption & Decryption**:
+  - `Save & Encrypt`: Encrypts the buffer with the active password and updates the vault file.
+  - `Remove Password`: Decrypts the body, removes `encrypted: true`, restores plain Markdown file, and opens standard Obsidian editor.
+
