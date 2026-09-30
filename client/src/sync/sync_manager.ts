@@ -4,6 +4,7 @@ import { computeContentHash } from "./hash_utils";
 
 interface LocalFileState {
   mtime: number;
+  size: number;
   hash: string;
 }
 
@@ -57,21 +58,34 @@ export class SyncManager {
     if (isManual) new Notice("🔄 Starting bidirectional sync...");
 
     try {
-      // 1. Gather all local files & compute hashes only if mtime modified
+      // 0. Flush in-memory editor buffers to disk before reading vault
+      const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+      for (const leaf of markdownLeaves) {
+        if (leaf.view && typeof (leaf.view as any).save === "function") {
+          try {
+            await (leaf.view as any).save();
+          } catch (saveErr) {
+            console.warn("Could not flush markdown leaf before sync:", saveErr);
+          }
+        }
+      }
+
+      // 1. Gather all local files & compute hashes only if mtime and size are unmodified
       const markdownFiles = this.app.vault.getMarkdownFiles();
       const clientFiles: Record<string, string> = {};
 
       for (const file of markdownFiles) {
         const path = file.path;
         const currentMtime = file.stat.mtime;
+        const currentSize = file.stat.size;
         const cached = this.localStateCache[path];
 
-        if (cached && cached.mtime === currentMtime) {
+        if (cached && cached.mtime === currentMtime && cached.size === currentSize) {
           clientFiles[path] = cached.hash;
         } else {
           const content = await this.app.vault.read(file);
           const hash = await computeContentHash(content);
-          this.localStateCache[path] = { mtime: currentMtime, hash };
+          this.localStateCache[path] = { mtime: currentMtime, size: currentSize, hash };
           clientFiles[path] = hash;
         }
       }
@@ -160,8 +174,12 @@ export class SyncManager {
               await this.app.vault.create(serverFile.path, serverFile.content);
             }
 
+            const updatedFile = this.app.vault.getAbstractFileByPath(serverFile.path);
+            const finalSize = updatedFile instanceof TFile ? updatedFile.stat.size : serverFile.content.length;
+
             this.localStateCache[serverFile.path] = {
               mtime: serverFile.mtime,
+              size: finalSize,
               hash: serverFile.hash,
             };
           }
