@@ -28,12 +28,26 @@ export default class ObsidianSyncAiPlugin extends Plugin {
     // 1. Settings Tab
     this.addSettingTab(new SettingsTab(this.app, this));
 
-    // 2. Mobile Toolbar & Ribbon Icon (Primary Action Menu)
+    // 2. Mobile Toolbar & Ribbon Icons (Primary Action Menus)
     this.addRibbonIcon("bot", "AI Assistant & Sync Actions", () => {
       this.openMobileActionModal();
     });
 
-    // 3. Register Commands
+    this.addRibbonIcon("lock", "Protect / Unlock Note", async () => {
+      const activeFile = this.app.workspace.getActiveFile();
+      if (activeFile instanceof TFile) {
+        const isEncrypted = await this.protectedNoteService.isNoteEncrypted(activeFile);
+        if (isEncrypted) {
+          await this.protectedNoteService.promptAndUnlockNote(activeFile);
+        } else {
+          await this.protectedNoteService.promptAndEncryptNote(activeFile);
+        }
+      } else {
+        new Notice("⚠️ Please open a note to protect or unlock.");
+      }
+    });
+
+    // 3. Register Commands (Always visible & addable to Mobile Toolbar)
     this.addCommand({
       id: "open-action-modal",
       name: "Open AI Action Menu",
@@ -52,31 +66,27 @@ export default class ObsidianSyncAiPlugin extends Plugin {
 
     this.addCommand({
       id: "encrypt-current-note",
-      name: "🔒 Encrypt Current Note with Password",
-      checkCallback: (checking: boolean) => {
+      name: "Encrypt current note with password",
+      callback: () => {
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile instanceof TFile) {
-          if (!checking) {
-            this.protectedNoteService.promptAndEncryptNote(activeFile);
-          }
-          return true;
+          this.protectedNoteService.promptAndEncryptNote(activeFile);
+        } else {
+          new Notice("⚠️ Please open a note to encrypt.");
         }
-        return false;
       },
     });
 
     this.addCommand({
       id: "unlock-current-note",
-      name: "🔓 Unlock Protected Note",
-      checkCallback: (checking: boolean) => {
+      name: "Unlock protected note",
+      callback: () => {
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile instanceof TFile) {
-          if (!checking) {
-            this.protectedNoteService.promptAndUnlockNote(activeFile);
-          }
-          return true;
+          this.protectedNoteService.promptAndUnlockNote(activeFile);
+        } else {
+          new Notice("⚠️ Please open a note to unlock.");
         }
-        return false;
       },
     });
 

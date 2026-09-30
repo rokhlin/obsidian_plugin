@@ -81,36 +81,37 @@ export class MobileActionModal extends Modal {
       }
     );
 
-    // Quick Action 4: Protected Notes (Unlock or Encrypt)
-    if (this.file) {
-      const cache = this.app.metadataCache.getFileCache(this.file);
-      const isEncrypted = cache?.frontmatter?.encrypted === true;
+    // Quick Action 4: Protected Notes (Unlock or Encrypt - Always visible)
+    const currentFile = this.file || this.app.workspace.getActiveFile();
+    const cache = currentFile ? this.app.metadataCache.getFileCache(currentFile) : null;
+    const isEncrypted = cache?.frontmatter?.encrypted === true;
 
-      if (isEncrypted) {
-        this.createQuickActionButton(
-          quickActionsBar,
-          "🔓 Unlock Note",
-          "Unlock protected note into secure in-memory editor",
-          async () => {
-            this.close();
-            if (this.file) {
-              await this.plugin.protectedNoteService.promptAndUnlockNote(this.file);
-            }
+    if (isEncrypted) {
+      this.createQuickActionButton(
+        quickActionsBar,
+        "🔓 Unlock Note",
+        "Unlock protected note into secure in-memory editor",
+        async () => {
+          this.close();
+          if (currentFile) {
+            await this.plugin.protectedNoteService.promptAndUnlockNote(currentFile);
           }
-        );
-      } else {
-        this.createQuickActionButton(
-          quickActionsBar,
-          "🔒 Encrypt Note",
-          "Protect this note with password encryption",
-          async () => {
-            this.close();
-            if (this.file) {
-              await this.plugin.protectedNoteService.promptAndEncryptNote(this.file);
-            }
+        }
+      );
+    } else {
+      this.createQuickActionButton(
+        quickActionsBar,
+        "🔒 Encrypt Note",
+        "Protect this note with password encryption",
+        async () => {
+          this.close();
+          if (currentFile) {
+            await this.plugin.protectedNoteService.promptAndEncryptNote(currentFile);
+          } else {
+            new Notice("⚠️ Please open a note to encrypt.");
           }
-        );
-      }
+        }
+      );
     }
 
     // 2. Direct Custom AI Prompt Section (Visible immediately upon modal open)
