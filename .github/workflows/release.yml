@@ -2,13 +2,16 @@ name: Release Obsidian Plugin & Extension
 
 on:
   push:
+    branches:
+      - master
+      - main
     tags:
       - 'v*.*.*'
       - 'v*'
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for release (e.g. v1.2.0). Leave empty to use package.json version'
+        description: 'Tag name for release (e.g. v1.4.0). Leave empty to use package.json version'
         required: false
         default: ''
 
@@ -16,9 +19,111 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Publish Release
+  # 1. Automatic Minor Release: Triggered on branch merge to master/main
+  auto-minor-release:
+    name: Auto Minor Release on Master Merge
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && !startsWith(github.event.head_commit.message, 'chore(release):') && !contains(github.event.head_commit.message, '[skip ci]')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if commit is already tagged or released
+        id: check_release
+        run: |
+          TAG_ON_HEAD=$(git tag --points-at HEAD | grep '^v' | head -n 1 || true)
+          if [ -n "$TAG_ON_HEAD" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Commit is already tagged with $TAG_ON_HEAD. Skipping auto-minor release."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        if: steps.check_release.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js
+        if: steps.check_release.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            client/package-lock.json
+            extension/package-lock.json
+
+      - name: Install dependencies
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          npm --prefix client ci
+          npm --prefix extension ci
+
+      - name: Execute Minor Version Bump
+        if: steps.check_release.outputs.skip != 'true'
+        id: bump
+        run: |
+          node scripts/prepare_release.mjs minor --no-push
+          VERSION=$(node -p "require('./client/package.json').version")
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Bumped minor version to $VERSION (tag: $TAG)"
+
+      - name: Commit and Push Version Bump to Master
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(release): auto-bump minor version to ${{ steps.bump.outputs.version }} [skip ci]" || echo "No changes to commit"
+          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+      - name: Extract Release Notes from Changelog.md
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          python scripts/extract_changelog.py "${{ steps.bump.outputs.version }}" RELEASE_NOTES.md
+          echo "=== Extracted Release Notes ==="
+          cat RELEASE_NOTES.md
+
+      - name: Package Web Extension Zip
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd extension
+          zip -r "../obsidian-companion-extension-${{ steps.bump.outputs.tag }}.zip" manifest.json popup.html popup.js background.js theme.css
+          cd ..
+          cp "obsidian-companion-extension-${{ steps.bump.outputs.tag }}.zip" obsidian-companion-extension.zip
+
+      - name: Publish GitHub Release for Auto Minor
+        if: steps.check_release.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: Release ${{ steps.bump.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            client/main.js
+            client/manifest.json
+            client/styles.css
+            obsidian-companion-extension-${{ steps.bump.outputs.tag }}.zip
+            obsidian-companion-extension.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2. Tag-Triggered Release: Triggered upon pushing git tags (patch, minor, major via release script)
+  publish-tag-release:
+    name: Publish Tag Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -36,7 +141,6 @@ jobs:
           else
             TAG="v$(node -p "require('./client/package.json').version")"
           fi
-          # Ensure tag starts with 'v'
           if [[ ! "$TAG" =~ ^v ]]; then
             TAG="v$TAG"
           fi
@@ -83,7 +187,7 @@ jobs:
           cd ..
           cp "obsidian-companion-extension-${{ steps.vars.outputs.tag }}.zip" obsidian-companion-extension.zip
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
