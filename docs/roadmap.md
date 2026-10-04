@@ -48,3 +48,13 @@ This document outlines the phased implementation milestones for the **Obsidian M
 - [x] **4.5**: Password dialog (`PasswordModal`), quick actions in `MobileActionModal`, commands, and permanent "Remove Password" decryption.
 - [x] **4.6**: Automated unit tests for cryptographic round-trip, tampered ciphertext detection, and envelope serialization.
 
+---
+
+## Phase 5: Cross-Platform Support (Windows Desktop & Web Extension)
+- [x] **5.1**: Windows Desktop Obsidian compatibility with optional local sync bypass (`enableCloudSync`).
+- [x] **5.2**: Dynamic note actions (Normal vs Locked vs Unlocked) in Windows file explorer context menu and `EncryptedNoteView` button labels.
+- [x] **5.3**: Standalone Chrome/Firefox Manifest V3 companion extension (`extension/`) with 4-tab interface (Capture, Protected, AI Tools, Settings).
+- [x] **5.4**: Zero-knowledge in-memory AES-256-GCM browser encryption with full Android button parity (Save, Lock, Remove Password) and auto-lock.
+- [x] **5.5**: Automated cross-platform cryptographic interoperability test suite (`test_cross_platform_crypto.mjs`) passing with 100% success.
+
+

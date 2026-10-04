@@ -14,16 +14,30 @@ The **Obsidian Plugin & Mobile Sync Backend** is an integrated knowledge-managem
 
 ```mermaid
 graph TD
-    subgraph MobileClient["Android Mobile (Obsidian App)"]
-        UI["Obsidian Mobile UI<br/>(Toolbar Button & Modal)"]
-        Editor["Obsidian Markdown Editor<br/>(Selection & Cursor)"]
-        HashEngine["xxhash-wasm Engine<br/>(Local Mtime & Hash Manifest)"]
-        AudioRec["MediaRecorder WebM/MP4<br/>(Voice Input)"]
-        PluginCore["Plugin Controller & Settings<br/>(Config: ob.alltogo.net, Token)"]
+    subgraph Clients["Cross-Platform Client Ecosystem"]
+        subgraph MobileClient["Android Mobile (Obsidian App)"]
+            MobileUI["Mobile Toolbar & Action Modal"]
+            MobileCrypto["Web Crypto (SubtleCrypto)<br/>AES-256-GCM + PBKDF2"]
+            MobileSync["xxhash-wasm Sync Engine"]
+        end
+
+        subgraph WindowsClient["Windows Desktop (Obsidian App)"]
+            WinUI["Desktop Sidebar & Context Menu"]
+            WinCrypto["Web Crypto (SubtleCrypto)<br/>AES-256-GCM + PBKDF2"]
+            WinFS["Local FileSystem Direct Adapter<br/>(Optional Sync Bypass)"]
+            WinSync["xxhash-wasm Sync Engine"]
+        end
+
+        subgraph WebExtension["Browser Extension (Manifest V3)"]
+            ExtPopup["Popup (400x600) & Tabs<br/>Obsidian Native CSS Tokens"]
+            ExtCrypto["In-Memory Web Crypto<br/>AES-256-GCM + PBKDF2"]
+            ExtAi["AI SSE Stream Consumer<br/>(Metadata, Fix Text, Prompt)"]
+            ExtWorker["Background Service Worker<br/>(Sync & Token Storage)"]
+        end
     end
 
     subgraph Tunnel["Network Transport"]
-        CFTunnel["Cloudflare Tunnel<br/>(ob.alltogo.net)"]
+        CFTunnel["Cloudflare Tunnel Gateway<br/>(ob.alltogo.net:5125)"]
     end
 
     subgraph DockerHost["Docker Backend Host (Port 5125)"]
@@ -40,11 +54,12 @@ graph TD
         end
     end
 
-    UI --> PluginCore
-    Editor --> PluginCore
-    AudioRec --> PluginCore
-    HashEngine --> PluginCore
-    PluginCore -->|"HTTPS / Secure Header"| CFTunnel
+    MobileSync -->|"HTTPS"| CFTunnel
+    WinSync -->|"HTTPS (If Enabled)"| CFTunnel
+    WinFS -->|"Direct Local Disk I/O"| WinLocalDisk["Local Vault Filesystem"]
+    ExtWorker -->|"HTTPS"| CFTunnel
+    ExtAi -->|"SSE / REST"| CFTunnel
+
     CFTunnel -->|"Reverse Proxy -> Port 5125"| API
     API --> SyncCtrl
     API --> AiCtrl
@@ -72,6 +87,15 @@ obsidian_plugin/
 │   ├── tsconfig.json
 │   ├── esbuild.config.mjs
 │   └── manifest.json            # Obsidian plugin manifest
+├── extension/                   # Standalone Web Extension (Manifest V3)
+│   ├── manifest.json            # MV3 configuration (action, storage, activeTab)
+│   ├── popup.html               # 400x600 Companion UI
+│   ├── popup.ts                 # State controller (Capture, Protected, AI Tools)
+│   ├── background.ts            # Background service worker
+│   ├── theme.css                # Obsidian native CSS design tokens
+│   ├── crypto/ext_crypto.ts     # In-memory AES-256-GCM browser crypto
+│   ├── ai/ext_ai_service.ts     # Fetch SSE streaming client
+│   └── package.json
 ├── server/                      # FastAPI Backend (Python 3.11+)
 │   ├── app/
 │   │   ├── main.py              # FastAPI app initialization & CORS/Auth middlewares

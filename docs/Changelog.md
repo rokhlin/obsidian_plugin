@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-04
+
 ### Added
+- **Cross-Platform Support (Windows Desktop & Browser Extension)**:
+  - **Windows Desktop Client**: Configurable `enableCloudSync` toggle allowing direct local vault filesystem operation (bypassing network calls for OneDrive/Syncthing setups). Dynamic `file-menu` context menu and desktop button text labels in `EncryptedNoteView` (`Save & Encrypt`, `Lock Now`, `Remove Password`).
+  - **Standalone Browser Extension (Manifest V3)**: Companion extension for Chromium/Firefox supporting quick note capture, AI metadata generation, text improvement, and custom AI prompt streaming.
+  - **Extension Protected Notes Parity**: Zero-knowledge AES-256-GCM encryption/decryption directly inside the browser popup with in-memory volatile isolation, auto-lock countdown, and Android parity controls (Save, Lock, Remove Password).
+  - **Cross-Platform Crypto Interoperability**: Automated test suite (`test_cross_platform_crypto.mjs`) passing with 100% interoperability between Android, Windows Electron, and Chrome Web Extension.
+
 - **Protected & Encrypted Notes Subsystem**:
   - Zero-knowledge client-side encryption using native Web Crypto API (`AES-256-GCM` + `PBKDF2-HMAC-SHA256` with 100,000 iterations).
   - Frontmatter metadata flag (`encrypted: true`) preserving note titles and tags while encrypting note body.
