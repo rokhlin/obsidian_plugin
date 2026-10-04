@@ -1,6 +1,6 @@
 {
   "name": "obsidian-plugin-monorepo",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "Root workspace runner for Obsidian Mobile/Desktop Plugin, Web Extension & Backend",
   "scripts": {

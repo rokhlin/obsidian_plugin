@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-04
+
 ### Fixed
 - **File Move / Rename Synchronization Duplication (BUG-003)**:
   - Registered Obsidian `vault.on("rename")` listener in `main.ts` to ensure moved or renamed notes are tracked and their former paths recorded as client tombstones (`deletedOnClient`).
