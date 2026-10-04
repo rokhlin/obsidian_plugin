@@ -135,15 +135,24 @@ try {
   console.log('Note: Working tree already clean or commit already made.');
 }
 
-run(`git tag -a ${tag} -m "Release ${tag}"`);
+try {
+  run(`git tag -a ${tag} -m "Release ${tag}"`);
+} catch (e) {
+  console.log(`Note: Tag ${tag} already exists or could not be created.`);
+}
+
+let currentBranch = 'master';
+try {
+  currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+} catch (e) {}
 
 if (noPush || isDryRun) {
-  console.log(`\n\x1b[33m⏸️ Release prepared locally. To publish, push master and the tag:\x1b[0m`);
-  console.log(`  git push origin master`);
+  console.log(`\n\x1b[33m⏸️ Release prepared locally. To publish, push ${currentBranch} and the tag:\x1b[0m`);
+  console.log(`  git push origin ${currentBranch}`);
   console.log(`  git push origin ${tag}`);
 } else {
   console.log(`\n🚀 Pushing commit and tag to origin to trigger GitHub Actions release...`);
-  run('git push origin master');
+  run(`git push origin ${currentBranch}`);
   run(`git push origin ${tag}`);
   console.log(`\n\x1b[32m✨ Release ${tag} initiated successfully!\x1b[0m`);
   console.log(`GitHub Actions workflow is now building and publishing the release with docs/Changelog.md notes.`);
