@@ -1,6 +1,6 @@
 {
   "name": "obsidian-plugin-monorepo",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Root workspace runner for Obsidian Mobile/Desktop Plugin, Web Extension & Backend",
   "scripts": {
@@ -8,6 +8,10 @@
     "build:client": "npm --prefix client run build",
     "build:extension": "npm --prefix extension run build",
     "test": "npm --prefix client test",
-    "dev": "npm --prefix client run dev"
+    "dev": "npm --prefix client run dev",
+    "release": "node scripts/prepare_release.mjs",
+    "release:patch": "node scripts/prepare_release.mjs patch",
+    "release:minor": "node scripts/prepare_release.mjs minor",
+    "release:major": "node scripts/prepare_release.mjs major"
   }
 }

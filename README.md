@@ -78,6 +78,40 @@ npm run build
 
 ---
 
+## 📦 Release Automation & Versioning
+
+Regular commits and pushes to `master` (features, bugfixes, documentation) **do not** trigger a GitHub release. Releases are strictly initiated by pushing a Git version tag (e.g. `v1.2.1`) or via manual dispatch in the GitHub Actions UI.
+
+### Automated Release in One Command
+
+Use the built-in release orchestrator to bump versions, format changelogs, build, test, and publish:
+
+```bash
+# 1. Patch release (e.g. 1.2.0 -> 1.2.1)
+npm run release:patch
+
+# 2. Minor release (e.g. 1.2.0 -> 1.3.0)
+npm run release:minor
+
+# 3. Explicit version release
+npm run release 1.4.0
+
+# 4. Dry-run preview (simulates all steps without writing or pushing)
+npm run release:patch -- --dry-run
+
+# 5. Local release without pushing to origin
+npm run release:patch -- --no-push
+```
+
+### What the Release Script Does Automatically:
+1. **Version Harmonization**: Updates `version` synchronously in `package.json`, `client/package.json`, `client/manifest.json`, `extension/package.json`, and `extension/manifest.json`.
+2. **Changelog Formatting**: Checks `docs/Changelog.md`. If entries exist under `## [Unreleased]`, automatically converts them into `## [X.Y.Z] - YYYY-MM-DD` and creates a fresh empty `## [Unreleased]` section.
+3. **Build & Test Verification**: Runs `npm run build` and `npm test`. If any test fails, the release process is safely aborted.
+4. **Git Commit & Tag**: Stages modified files, creates a `chore(release): bump version to X.Y.Z` commit, and creates an annotated tag `vX.Y.Z`.
+5. **Triggers GitHub Actions**: Pushes the commit and tag to GitHub, which automatically activates `.github/workflows/release.yml` to compile assets, extract release notes from `docs/Changelog.md`, package the extension `.zip`, and publish the release.
+
+---
+
 ## 🚀 Installation & Setup Guides
 
 ### Guide 1: Installation on Windows (Obsidian Desktop)
