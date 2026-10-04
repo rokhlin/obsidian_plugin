@@ -12,7 +12,7 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
-  serverUrl: "https://ob.alltogo.net",
+  serverUrl: "http://localhost:5125",
   authToken: "",
   syncDebounceSeconds: 3,
   autoSyncOnStartup: true,
@@ -37,10 +37,10 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Backend Server URL")
-      .setDesc("Address of your self-hosted FastAPI backend (e.g., https://ob.alltogo.net or http://192.168.1.100:5125)")
+      .setDesc("Address of your self-hosted FastAPI backend (e.g., http://192.168.1.100:5125 or https://your-domain.com)")
       .addText((text) =>
         text
-          .setPlaceholder("https://ob.alltogo.net")
+          .setPlaceholder("http://localhost:5125")
           .setValue(this.plugin.settings.serverUrl)
           .onChange(async (value) => {
             this.plugin.settings.serverUrl = value.trim().replace(/\/+$/, "");

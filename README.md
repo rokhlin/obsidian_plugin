@@ -6,7 +6,7 @@ A full-stack knowledge management ecosystem for [Obsidian](https://obsidian.md).
 2. **Zero-Knowledge Client-Side Encryption**: AES-256-GCM + PBKDF2 authenticated encryption (100,000 iterations). Protected notes can be created, unlocked, and edited across Android, Windows Desktop, and Chrome Extension with in-memory volatile isolation (plaintext is never written to disk or temporary cache files).
 3. **AI-Assisted Note Workflows**: Google Gemini integration for YAML frontmatter metadata generation, real-time SSE streaming text correction, and contextual custom prompts.
 4. **Voice Note Transcription**: Microphone audio capture with intent separation (automatically formatting voice directives into clean Markdown).
-5. **Zero-Port Exposure Security**: Designed to run behind a Cloudflare Tunnel (`ob.alltogo.net`) routed to local port `5125` with secure Bearer header authentication.
+5. **Flexible & Secure Deployment**: Runs in Docker on your personal server, NAS, or home lab (port `5125`) with Bearer token authentication. Expose securely to your devices via local network, Tailscale, Cloudflare Tunnel, or reverse proxy (Nginx/Caddy).
 
 ---
 
@@ -109,7 +109,7 @@ This produces `main.js`, `manifest.json`, and `styles.css` in `client/`.
 3. Click the **Reload plugins** button (circular arrow next to *Installed plugins*).
 4. Find **Obsidian Mobile Sync & AI** in the list and toggle it **ON**.
 5. Click **Obsidian Mobile Sync & AI Settings** at the bottom of the left sidebar:
-   - **Backend Server URL**: `https://ob.alltogo.net` (or `http://localhost:5125` if running locally).
+   - **Backend Server URL**: `http://localhost:5125` (if backend is on the same machine), `http://<YOUR_SERVER_IP>:5125` (local network / NAS), or `https://your-domain.com` (via reverse proxy or tunnel).
    - **Authentication Bearer Token**: Paste your `AUTH_TOKEN`.
    - **Enable Cloud Synchronization**:
      - Keep **enabled** to sync with your remote self-hosted server.
@@ -150,7 +150,7 @@ You can transfer the files using USB Cable (MTP), ADB, or a local sync tool:
 2. Tap the gear icon $\to$ **Community plugins** $\to$ Tap the refresh icon next to *Installed plugins*.
 3. Enable **Obsidian Mobile Sync & AI**.
 4. In the plugin settings, set:
-   - **Backend Server URL**: `https://ob.alltogo.net`
+   - **Backend Server URL**: `http://<YOUR_SERVER_IP>:5125` (when connected to home Wi-Fi) or `https://your-domain.com` (via remote tunnel / reverse proxy).
    - **Authentication Token**: Your `AUTH_TOKEN`.
    - Tap **Test Connection** to confirm connectivity.
 5. In Obsidian Mobile **Toolbar Settings**, add the **Open AI Action Menu** command to your mobile bottom toolbar for quick access (`🏷️ Metadata`, `✍️ Fix Text`, `🎙️ Voice Note`, `💬 Custom Prompt`).
@@ -187,7 +187,7 @@ This bundles `popup.js` and `background.js` into the `extension/` directory.
 1. Click the puzzle icon (🧩) in Chrome's top toolbar and click the **Pin (📌)** icon next to **Obsidian Companion**.
 2. Click the purple **O** icon in your toolbar to open the 400x600 popup.
 3. Click the gear icon (**⚙️**) in the header (Settings tab):
-   - **Backend Server URL**: `https://ob.alltogo.net`
+   - **Backend Server URL**: `http://localhost:5125` (local), `http://<YOUR_SERVER_IP>:5125` (LAN), or `https://your-domain.com`.
    - **Authentication Token**: Paste your `AUTH_TOKEN`.
    - Click **🔍 Test Connection & Auth** (a green dot will indicate verified connection).
    - Click **Save Settings**.
@@ -235,22 +235,176 @@ IV: <Base64 12-byte IV>
 
 ## 🖥️ Backend Server Deployment (Port 5125)
 
-### Running with Docker Compose (Recommended)
-1. Configure credentials:
-   ```bash
-   cp server/data/config/.env.example server/data/config/.env
-   # Edit server/data/config/.env with your AUTH_TOKEN and GEMINI_API_KEY
-   ```
-2. Start the container:
-   ```bash
-   cd infra && docker compose up -d
-   ```
-   The backend binds to host port `5125` and connects through Cloudflare Tunnel at `https://ob.alltogo.net`.
+The backend is a self-hosted FastAPI container that coordinates bidirectional note synchronization, conflict resolution manifests, and AI assistant capabilities. All notes and metadata are stored in persistent host volumes.
 
-### Running Backend Tests
+---
+
+### 1. Environment Configuration (`.env`)
+
+Create a configuration file (or pass variables directly into Docker). If cloning this repository, copy the example:
+```bash
+cp server/data/config/.env.example server/data/config/.env
+```
+
+| Environment Variable | Required | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `AUTH_TOKEN` | **Yes** | — | Shared secret Bearer token used to authenticate all sync, AI, and note API requests. |
+| `GEMINI_API_KEY` | Optional | — | Google Gemini API key from [Google AI Studio](https://aistudio.google.com/) for AI writing, frontmatter metadata, and intent processing. |
+| `GEMINI_MODEL` | No | `gemini-3.5-flash-lite` | Gemini model variant (e.g., `gemini-3.5-flash-lite`, `gemini-1.5-flash`, `gemini-1.5-pro`). |
+| `TRANSCRIPTION_ENGINE`| No | `cloud_gemini` | Voice transcription engine: `cloud_gemini`, `cloud_openai`, or `local_faster_whisper`. |
+| `OPENAI_API_KEY` | Conditional | — | OpenAI API key (required only if `TRANSCRIPTION_ENGINE=cloud_openai`). |
+| `HOST` | No | `0.0.0.0` | Container bind address. |
+| `PORT` | No | `5125` | Container bind port. |
+
+> [!TIP]
+> Generate a strong `AUTH_TOKEN` using OpenSSL:
+> ```bash
+> openssl rand -hex 24
+> ```
+
+---
+
+### 2. Deployment Methods
+
+#### Option A: Standalone Docker Compose (Recommended)
+
+Save the following as `docker-compose.yml` on your server (VPS, Raspberry Pi, NAS, Unraid, CasaOS):
+
+```yaml
+services:
+  obsidian-backend:
+    image: ghcr.io/rokhlin/obsidian_plugin:latest
+    container_name: obsidian-sync-ai-backend
+    restart: unless-stopped
+    ports:
+      - "5125:5125"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5125
+      - AUTH_TOKEN=your_secure_bearer_token_here
+      - GEMINI_API_KEY=your_gemini_api_key_here
+      - GEMINI_MODEL=gemini-3.5-flash-lite
+      - TRANSCRIPTION_ENGINE=cloud_gemini
+    volumes:
+      - ./data/vault:/data/vault
+      - ./data/archive:/data/archive
+      - ./data/conflicts:/data/conflicts
+      - ./data:/data
+```
+
+Start the container:
+```bash
+docker compose up -d
+```
+
+#### Option B: Standalone Docker CLI (`docker run`)
+
+Run directly with Docker without a Compose file:
+
+```bash
+docker run -d \
+  --name obsidian-sync-ai-backend \
+  --restart unless-stopped \
+  -p 5125:5125 \
+  -e AUTH_TOKEN="your_secure_bearer_token_here" \
+  -e GEMINI_API_KEY="your_gemini_api_key_here" \
+  -v $(pwd)/data/vault:/data/vault \
+  -v $(pwd)/data/archive:/data/archive \
+  -v $(pwd)/data/conflicts:/data/conflicts \
+  -v $(pwd)/data:/data \
+  ghcr.io/rokhlin/obsidian_plugin:latest
+```
+
+#### Option C: Build from Monorepo Source
+
+If you cloned the full `obsidian_plugin` repository:
+```bash
+# 1. Populate config
+cp server/data/config/.env.example server/data/config/.env
+# Edit server/data/config/.env with your AUTH_TOKEN and GEMINI_API_KEY
+
+# 2. Build and launch
+cd infra
+docker compose up -d --build
+```
+
+---
+
+### 3. Persistent Data Storage Structure
+
+The container mounts the `./data` directory on the host to ensure all notes and history persist across restarts:
+- `./data/vault/`: Live Markdown vault files synchronized across your devices.
+- `./data/archive/`: Historical versions of deleted or overwritten notes (for disaster recovery).
+- `./data/conflicts/`: Timestamped copies of conflicting note edits (never lost).
+- `./data/sync_manifest.db`: SQLite database storing xxHash cryptographic state manifests and sync timestamps.
+
+---
+
+### 4. Networking & Remote Access Setup
+
+Choose the setup that matches your infrastructure:
+
+#### 1. Local Network / Home Wi-Fi (Simplest)
+Connect directly via your host server's local IP address:
+- **Server URL**: `http://<YOUR_LOCAL_IP>:5125` (e.g., `http://192.168.1.150:5125`)
+- No domain name or public port exposure required.
+
+#### 2. Private Mesh / VPN (Tailscale, WireGuard) — Recommended for Security
+Install [Tailscale](https://tailscale.com) on your server and client devices:
+- **Server URL**: `http://<TAILSCALE_IP>:5125` (e.g., `http://100.85.20.10:5125`)
+- Encrypted peer-to-peer connection worldwide with zero public ports open to the Internet.
+
+#### 3. Cloudflare Tunnel (Zero-Port Forwarding with HTTPS)
+If using a custom domain with Cloudflare:
+```bash
+cloudflared tunnel run --url http://localhost:5125 <your-tunnel-name>
+```
+- **Server URL**: `https://notes.yourdomain.com`
+
+#### 4. Reverse Proxy with SSL (Nginx / Caddy)
+If hosting on a public VPS with a domain:
+- **Caddyfile**:
+  ```caddyfile
+  notes.yourdomain.com {
+      reverse_proxy localhost:5125
+  }
+  ```
+- **Nginx snippet**:
+  ```nginx
+  server {
+      server_name notes.yourdomain.com;
+      location / {
+          proxy_pass http://127.0.0.1:5125;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+      }
+  }
+  ```
+
+---
+
+### 5. Verifying Server Health & Connection
+
+After starting the container, verify that it is responding:
+
+```bash
+# 1. Health probe
+curl http://localhost:5125/health
+# Response: {"status":"healthy"}
+
+# 2. Authenticated handshake check
+curl -H "Authorization: Bearer your_secure_bearer_token_here" http://localhost:5125/api/auth/verify
+# Response: {"status":"authenticated"}
+```
+
+---
+
+### 6. Running Backend Unit Tests (Development)
 ```bash
 cd server
-.venv\Scripts\python.exe -m pytest tests/
+python -m pytest tests/
 # 17 passed, 86% coverage
 ```
 

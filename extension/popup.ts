@@ -7,7 +7,7 @@ interface ExtensionConfig {
 }
 
 const DEFAULT_CONFIG: ExtensionConfig = {
-  serverUrl: "https://ob.alltogo.net",
+  serverUrl: "http://localhost:5125",
   authToken: "",
 };
 

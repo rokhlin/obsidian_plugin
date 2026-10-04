@@ -35,4 +35,4 @@ This matrix tracks all external libraries, frameworks, runtimes, and Docker imag
 | Category | Target | Image / Tool | Version / Tag | Purpose & Feature Mapping | Status | Decision Context / Rationale |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Container** | Backend | `python:3.12-slim` | `3.12-slim` | Base Docker runtime for FastAPI service | Active | Minimal image size with security patches. |
-| **Tunnel** | Ingress | `cloudflared` | Host installed | Cloudflare Tunnel routing `ob.alltogo.net` $\to$ port 5125 | Active | Pre-configured by user on host system. |
+| **Tunnel / Ingress** | Ingress | `cloudflared` / `caddy` / `nginx` | Host / Docker | Reverse proxy or tunnel routing HTTPS to port 5125 | Active | Configured by user for remote access. |

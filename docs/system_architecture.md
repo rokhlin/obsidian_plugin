@@ -6,7 +6,7 @@ The **Obsidian Plugin & Mobile Sync Backend** is an integrated knowledge-managem
 1. **Lightweight, Zero-Loss Bidirectional Synchronization**: State diffing via xxHash manifests, debounced auto-sync, client-priority conflict resolution with external server archiving (`data/conflicts/` and `data/archive/`).
 2. **AI-Assisted Note Workflows**: Google Gemini integration for YAML frontmatter generation, streaming inline text correction, and contextual note querying.
 3. **Voice Note Transcription**: Android microphone audio capture with streaming or batch transcription into Markdown at the cursor.
-4. **Zero-Port Exposure Security**: Hosted behind an existing Cloudflare Tunnel (`ob.alltogo.net`) routed to local port `5125` with secure header authentication.
+4. **Zero-Port Exposure Security**: Designed to run behind a reverse proxy or tunnel (Cloudflare Tunnel, Tailscale, Nginx, Caddy) routed to local port `5125` with secure Bearer header authentication.
 
 ---
 
@@ -37,7 +37,7 @@ graph TD
     end
 
     subgraph Tunnel["Network Transport"]
-        CFTunnel["Cloudflare Tunnel Gateway<br/>(ob.alltogo.net:5125)"]
+        CFTunnel["Reverse Proxy / Tunnel Gateway<br/>(HTTPS Ingress :5125)"]
     end
 
     subgraph DockerHost["Docker Backend Host (Port 5125)"]
@@ -175,7 +175,7 @@ obsidian_plugin/
 - **Configuration Path**: All environment variables are loaded from `data/config/.env` using Pydantic Settings.
 - **Port Binding**: Host port `5125` $\to$ Docker container port `5125`.
 - **Pre-Shared Bearer Token**: All requests must supply `Authorization: Bearer <AUTH_TOKEN>` or `X-Auth-Token: <AUTH_TOKEN>`.
-- **Cloudflare Integration**: The tunnel handles TLS termination for `ob.alltogo.net`. The backend validates the authentication header before any request is processed.
+- **TLS & Reverse Proxy Integration**: An optional reverse proxy or tunnel (Cloudflare Tunnel, Caddy, Nginx) handles TLS termination for custom domain names. The backend validates the authentication header before any request is processed.
 
 ---
 
