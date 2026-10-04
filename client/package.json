@@ -1,12 +1,12 @@
 {
   "name": "obsidian-sync-ai",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Zero-loss synchronization to self-hosted server, zero-knowledge encryption, and AI writing/voice assistant for Obsidian Android & Windows Desktop.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "test": "esbuild src/crypto/crypto_manager.ts --bundle --format=esm --outfile=client_crypto_test_bundle.js && esbuild ../extension/crypto/ext_crypto.ts --bundle --format=esm --outfile=extension_crypto_test_bundle.js && node --test tests/test_crypto.mjs tests/test_cross_platform_crypto.mjs"
+    "test": "esbuild src/crypto/crypto_manager.ts --bundle --format=esm --outfile=client_crypto_test_bundle.js && esbuild ../extension/crypto/ext_crypto.ts --bundle --format=esm --outfile=extension_crypto_test_bundle.js && esbuild src/sync/sync_manager.ts --bundle --format=esm --outfile=client_sync_test_bundle.js --alias:obsidian=./tests/mocks/obsidian_mock.js && node --test tests/test_crypto.mjs tests/test_cross_platform_crypto.mjs tests/test_sync_rename.mjs"
   },
   "keywords": [
     "obsidian",

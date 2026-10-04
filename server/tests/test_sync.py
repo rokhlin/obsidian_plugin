@@ -190,3 +190,123 @@ async def test_sync_direct_delete(client: AsyncClient, auth_headers: dict):
     archived_file = settings.archive_dir / "Quick" / "NoteToDelete.md"
     assert archived_file.exists()
     assert archived_file.read_text(encoding="utf-8") == "Delete me now"
+
+
+@pytest.mark.asyncio
+async def test_sync_file_move_rename_without_duplication(client: AsyncClient, auth_headers: dict):
+    # 1. Initially upload file at original path
+    await client.post(
+        "/api/sync/upload",
+        headers=auth_headers,
+        json={
+            "files": [
+                {
+                    "path": "Notes/Idea.md",
+                    "content": "# Revolutionary Idea",
+                    "mtime": 1000,
+                    "hash": "hash_idea_v1",
+                }
+            ]
+        },
+    )
+    orig_file = settings.vault_dir / "Notes" / "Idea.md"
+    assert orig_file.exists()
+
+    # 2. Defect Demonstration: If client moved file to Archive/Idea.md but didn't tombstone Notes/Idea.md,
+    # server would return Notes/Idea.md in toDownload, causing duplication.
+    bug_status_resp = await client.post(
+        "/api/sync/status",
+        headers=auth_headers,
+        json={
+            "clientFiles": {"Archive/Idea.md": "hash_idea_v1"},
+            "deletedOnClient": [],  # Old bug: rename did not record deletion
+        },
+    )
+    assert bug_status_resp.status_code == 200
+    bug_data = bug_status_resp.json()
+    assert "Notes/Idea.md" in bug_data["toDownload"]  # Reproduces bug: server instructs download of old file
+
+    # 3. Verified Fix: With rename tombstone sent in deletedOnClient
+    fix_status_resp = await client.post(
+        "/api/sync/status",
+        headers=auth_headers,
+        json={
+            "clientFiles": {"Archive/Idea.md": "hash_idea_v1"},
+            "deletedOnClient": ["Notes/Idea.md"],
+        },
+    )
+    assert fix_status_resp.status_code == 200
+    fix_data = fix_status_resp.json()
+    # Old path must be acknowledged and archived
+    assert "Notes/Idea.md" in fix_data["acknowledgedDeletions"]
+    # Old path MUST NOT be in toDownload (no resurrection/duplication)
+    assert "Notes/Idea.md" not in fix_data["toDownload"]
+    assert "Archive/Idea.md" in fix_data["toUpload"]
+    # Old file on server must be removed from vault and present in archive
+    assert not orig_file.exists()
+    archived_orig = settings.archive_dir / "Notes" / "Idea.md"
+    assert archived_orig.exists()
+
+    # 4. Client completes upload of moved file
+    upload_resp = await client.post(
+        "/api/sync/upload",
+        headers=auth_headers,
+        json={
+            "files": [
+                {
+                    "path": "Archive/Idea.md",
+                    "content": "# Revolutionary Idea",
+                    "mtime": 2000,
+                    "hash": "hash_idea_v1",
+                }
+            ]
+        },
+    )
+    assert upload_resp.status_code == 200
+    assert "Archive/Idea.md" in upload_resp.json()["uploaded"]
+
+    new_file = settings.vault_dir / "Archive" / "Idea.md"
+    assert new_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_sync_server_disk_file_moved_cleanup(client: AsyncClient, auth_headers: dict):
+    from app.services.sync_service import sync_service
+
+    # 1. Upload a file
+    await client.post(
+        "/api/sync/upload",
+        headers=auth_headers,
+        json={
+            "files": [
+                {
+                    "path": "ServerMove/OldDisk.md",
+                    "content": "On disk note",
+                    "mtime": 1000,
+                    "hash": "hash_disk_1",
+                }
+            ]
+        },
+    )
+    old_disk_file = settings.vault_dir / "ServerMove" / "OldDisk.md"
+    assert old_disk_file.exists()
+
+    # 2. Simulate moving the file directly on server filesystem
+    new_disk_dir = settings.vault_dir / "ServerMove" / "Sub"
+    new_disk_dir.mkdir(parents=True, exist_ok=True)
+    new_disk_file = new_disk_dir / "NewDisk.md"
+    old_disk_file.rename(new_disk_file)
+
+    # 3. Server filesystem scan runs
+    await sync_service.sync_server_filesystem_to_db()
+
+    # 4. Status handshake: Server must know OldDisk.md is gone and NewDisk.md exists
+    status_resp = await client.post(
+        "/api/sync/status",
+        headers=auth_headers,
+        json={"clientFiles": {}, "deletedOnClient": []},
+    )
+    assert status_resp.status_code == 200
+    data = status_resp.json()
+    assert "ServerMove/OldDisk.md" not in data["toDownload"]
+    assert "ServerMove/Sub/NewDisk.md" in data["toDownload"]

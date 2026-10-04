@@ -127,7 +127,7 @@ run('npm test');
 const tag = `v${targetVersion}`;
 console.log(`\n🏷️ Committing and creating Git tag ${tag}...`);
 
-run('git add package.json client/package.json client/manifest.json extension/package.json extension/manifest.json docs/Changelog.md client/main.js client/styles.css extension/popup.js extension/background.js');
+run('git add package.json client/package.json client/manifest.json extension/package.json extension/manifest.json docs/Changelog.md client/styles.css extension/popup.js extension/background.js');
 
 try {
   run(`git commit -m "chore(release): bump version to ${targetVersion}"`);

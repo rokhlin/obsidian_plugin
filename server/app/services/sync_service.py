@@ -26,14 +26,16 @@ class SyncService:
         return xxhash.xxh64(content.encode("utf-8")).hexdigest()
 
     async def sync_server_filesystem_to_db(self) -> None:
-        """Scan server vault directory to register any files added directly on server."""
+        """Scan server vault directory to register files added or removed directly on server."""
         vault = settings.vault_dir
         if not vault.exists():
             return
         manifest = await self.db.get_all_manifest_records()
+        disk_files = set()
         for file_path in vault.rglob("*"):
             if file_path.is_file() and not file_path.name.startswith("."):
                 rel_path = file_path.relative_to(vault).as_posix()
+                disk_files.add(rel_path)
                 if rel_path not in manifest:
                     try:
                         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -42,6 +44,11 @@ class SyncService:
                         await self.db.upsert_record(rel_path, file_hash, mtime)
                     except Exception:
                         pass
+
+        # Purge stale records from DB manifest if file was deleted or moved directly on server filesystem
+        for manifest_path in manifest:
+            if manifest_path not in disk_files:
+                await self.db.remove_record(manifest_path)
 
     async def get_sync_status(self, request: SyncStatusRequest) -> SyncStatusResponse:
         await self.sync_server_filesystem_to_db()
