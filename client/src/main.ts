@@ -65,6 +65,14 @@ export default class ObsidianSyncAiPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "create-protected-note",
+      name: "Create new protected note",
+      callback: async () => {
+        await this.protectedNoteService.createProtectedNote();
+      },
+    });
+
+    this.addCommand({
       id: "protect-note-toggle",
       name: "Protect or unlock note (Lock / Encrypt)",
       callback: async () => {

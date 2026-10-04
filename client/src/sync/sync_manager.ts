@@ -59,8 +59,28 @@ export class SyncManager {
 
     try {
       // 0. Flush in-memory editor buffers to disk before reading vault
+      const encryptedLeaves = this.app.workspace.getLeavesOfType("encrypted-note-view");
+      const activeEncryptedPaths = new Set<string>();
+      for (const leaf of encryptedLeaves) {
+        if (leaf.view && typeof (leaf.view as any).flushAutoSave === "function") {
+          try {
+            await (leaf.view as any).flushAutoSave();
+            const boundFile = (leaf.view as any).file;
+            if (boundFile?.path) {
+              activeEncryptedPaths.add(boundFile.path);
+            }
+          } catch (e) {
+            console.warn("Could not flush encrypted note leaf:", e);
+          }
+        }
+      }
+
       const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
       for (const leaf of markdownLeaves) {
+        const filePath = (leaf.view as any)?.file?.path;
+        if (filePath && activeEncryptedPaths.has(filePath)) {
+          continue; // Prevent stale CodeMirror buffer from overwriting freshly saved encrypted note
+        }
         if (leaf.view && typeof (leaf.view as any).save === "function") {
           try {
             await (leaf.view as any).save();

@@ -57,13 +57,24 @@ export class ProtectedNoteService {
 
           new Notice("✅ Note unlocked successfully.");
 
-          // Open custom tab/leaf
+          // Open custom tab/leaf with buffer collision prevention
           let leaf: WorkspaceLeaf | null = null;
           const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ENCRYPTED_NOTE);
           if (leaves.length > 0) {
             leaf = leaves[0];
           } else {
-            leaf = this.app.workspace.getLeaf(true);
+            const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+            const fileMarkdownLeaf = markdownLeaves.find(
+              (l) => (l.view as any)?.file?.path === file.path
+            );
+            leaf = fileMarkdownLeaf || this.app.workspace.getLeaf(false);
+          }
+
+          // Detach any remaining markdown leaves showing this file to prevent stale buffer overwrites
+          for (const mLeaf of this.app.workspace.getLeavesOfType("markdown")) {
+            if (mLeaf !== leaf && (mLeaf.view as any)?.file?.path === file.path) {
+              mLeaf.detach();
+            }
           }
 
           await leaf.setViewState({
@@ -114,7 +125,18 @@ export class ProtectedNoteService {
           if (leaves.length > 0) {
             leaf = leaves[0];
           } else {
-            leaf = this.app.workspace.getLeaf(true);
+            const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+            const fileMarkdownLeaf = markdownLeaves.find(
+              (l) => (l.view as any)?.file?.path === file.path
+            );
+            leaf = fileMarkdownLeaf || this.app.workspace.getLeaf(false);
+          }
+
+          // Detach any remaining markdown leaves showing this file to prevent buffer collisions
+          for (const mLeaf of this.app.workspace.getLeavesOfType("markdown")) {
+            if (mLeaf !== leaf && (mLeaf.view as any)?.file?.path === file.path) {
+              mLeaf.detach();
+            }
           }
 
           await leaf.setViewState({
@@ -129,6 +151,60 @@ export class ProtectedNoteService {
           return true;
         } catch (err: any) {
           throw new Error(err?.message || "Failed to encrypt note.");
+        }
+      },
+    }).open();
+  }
+
+  /**
+   * Creates a new protected note by prompting for a filename and password,
+   * then creating an encrypted file and opening it.
+   */
+  public async createProtectedNote(): Promise<void> {
+    // Generate a default untitled filename
+    let defaultName = "Untitled Protected Note";
+    let index = 1;
+    let newPath = `${defaultName}.md`;
+    while (this.app.vault.getAbstractFileByPath(newPath)) {
+      newPath = `${defaultName} ${index}.md`;
+      index++;
+    }
+
+    new PasswordModal(this.app, {
+      title: `🔒 Create Protected Note`,
+      submitLabel: "Set Password & Create",
+      isConfirmationRequired: true,
+      onSubmit: async (password: string) => {
+        try {
+          const body = "";
+          const frontmatterLines = ["---", "encrypted: true", "---"];
+          const encryptedArmor = await CryptoManager.encrypt(body, password);
+          const formattedNote = CryptoManager.formatNote(frontmatterLines, encryptedArmor, true);
+
+          const newFile = await this.app.vault.create(newPath, formattedNote);
+          new Notice(`🔒 Created ${newFile.basename} successfully.`);
+
+          // Open in EncryptedNoteView
+          let leaf: WorkspaceLeaf | null = null;
+          const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ENCRYPTED_NOTE);
+          if (leaves.length > 0) {
+            leaf = leaves[0];
+          } else {
+            leaf = this.app.workspace.getLeaf(false);
+          }
+
+          await leaf.setViewState({
+            type: VIEW_TYPE_ENCRYPTED_NOTE,
+            active: true,
+          });
+
+          const view = leaf.view as EncryptedNoteView;
+          view.setNoteData(newFile, body, password);
+          this.app.workspace.setActiveLeaf(leaf, { focus: true });
+
+          return true;
+        } catch (err: any) {
+          throw new Error(err?.message || "Failed to create protected note.");
         }
       },
     }).open();

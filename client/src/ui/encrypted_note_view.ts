@@ -12,6 +12,8 @@ export class EncryptedNoteView extends ItemView {
   private inMemoryText = "";
   private textareaEl: HTMLTextAreaElement | null = null;
   private inactivityTimer: any = null;
+  private autoSaveTimer: any = null;
+  private isSaving = false;
   private visibilityHandler: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: ObsidianSyncAiPlugin) {
@@ -38,101 +40,104 @@ export class EncryptedNoteView extends ItemView {
 
     // Top Action Bar
     const topBar = container.createDiv({ cls: "encrypted-note-topbar" });
-    topBar.style.display = "flex";
-    topBar.style.justifyContent = "space-between";
-    topBar.style.alignItems = "center";
-    topBar.style.padding = "8px 12px";
-    topBar.style.borderBottom = "1px solid var(--background-modifier-border)";
-    topBar.style.backgroundColor = "var(--background-secondary)";
-    topBar.style.flexWrap = "wrap";
-    topBar.style.gap = "8px";
 
-    // Left info
+    // Left info badge
     const infoDiv = topBar.createDiv({ cls: "encrypted-note-info" });
-    infoDiv.style.display = "flex";
-    infoDiv.style.alignItems = "center";
-    infoDiv.style.gap = "6px";
-    const badge = infoDiv.createEl("span", { text: "🔒 Decrypted in Memory" });
+    const badge = infoDiv.createEl("span", { text: "🔒 Encrypted" });
     badge.style.fontSize = "0.8em";
     badge.style.fontWeight = "bold";
     badge.style.color = "var(--text-accent)";
+    badge.style.whiteSpace = "nowrap";
 
-    // Right Action Buttons
+    // Right Action Buttons (Icon-only with tooltips and touch padding)
     const actionsDiv = topBar.createDiv({ cls: "encrypted-note-actions" });
-    actionsDiv.style.display = "flex";
-    actionsDiv.style.gap = "6px";
-    actionsDiv.style.alignItems = "center";
 
     // Save & Encrypt Button
     new ButtonComponent(actionsDiv)
-      .setButtonText("💾 Save & Encrypt")
+      .setIcon("save")
       .setCta()
-      .setTooltip("Encrypt in-memory changes and write to disk")
+      .setTooltip("Save & Encrypt changes to disk")
       .onClick(async () => {
-        await this.saveAndEncrypt();
+        await this.saveAndEncrypt(false);
       });
 
     // Lock Now Button
     new ButtonComponent(actionsDiv)
-      .setButtonText("🔒 Lock")
-      .setTooltip("Clear memory and lock note immediately")
-      .onClick(() => {
-        this.lockAndClose();
+      .setIcon("lock")
+      .setTooltip("Lock note immediately (Clear memory)")
+      .onClick(async () => {
+        await this.lockAndClose();
       });
 
-    // Remove Password Button
+    // Clear Password / Remove Protection Button
     new ButtonComponent(actionsDiv)
-      .setButtonText("🔓 Remove Password")
+      .setIcon("key")
       .setWarning()
-      .setTooltip("Decrypt permanently and restore regular plain note")
+      .setTooltip("Clear Password & Restore Plain Format")
       .onClick(async () => {
         await this.decryptAndRemovePassword();
       });
 
+    // Markdown Formatting Toolbar Strip
+    const formattingBar = container.createDiv({ cls: "encrypted-note-formatting-bar" });
+
+    const createFormatBtn = (icon: string, tooltip: string, action: () => void) => {
+      new ButtonComponent(formattingBar)
+        .setIcon(icon)
+        .setTooltip(tooltip)
+        .onClick(action);
+    };
+
+    createFormatBtn("bold", "Bold (**text**)", () => this.insertFormatting("**", "**", "bold"));
+    createFormatBtn("italic", "Italic (*text*)", () => this.insertFormatting("*", "*", "italic"));
+    createFormatBtn("strikethrough", "Strikethrough (~~text~~)", () => this.insertFormatting("~~", "~~", "text"));
+    createFormatBtn("heading", "Heading (#)", () => this.insertLinePrefix("# "));
+    createFormatBtn("list", "Bullet List (-)", () => this.insertLinePrefix("- "));
+    createFormatBtn("check-square", "Task List (- [ ])", () => this.insertLinePrefix("- [ ] "));
+    createFormatBtn("quote-glyph", "Quote (>)", () => this.insertLinePrefix("> "));
+    createFormatBtn("code", "Code (`code`)", () => this.insertFormatting("`", "`", "code"));
+    createFormatBtn("link", "Link ([title](url))", () => this.insertFormatting("[", "](url)", "title"));
+
     // In-Memory Editor Container
     const editorContainer = container.createDiv({ cls: "encrypted-note-editor-wrapper" });
-    editorContainer.style.flex = "1";
-    editorContainer.style.display = "flex";
-    editorContainer.style.flexDirection = "column";
-    editorContainer.style.height = "calc(100% - 50px)";
-    editorContainer.style.padding = "12px";
 
     this.textareaEl = editorContainer.createEl("textarea", {
       cls: "encrypted-note-textarea",
     });
-    this.textareaEl.style.width = "100%";
-    this.textareaEl.style.height = "100%";
-    this.textareaEl.style.flex = "1";
-    this.textareaEl.style.resize = "none";
-    this.textareaEl.style.fontFamily = "var(--font-monospace)";
-    this.textareaEl.style.fontSize = "var(--font-text-size)";
-    this.textareaEl.style.lineHeight = "1.5";
-    this.textareaEl.style.backgroundColor = "var(--background-primary)";
-    this.textareaEl.style.color = "var(--text-normal)";
-    this.textareaEl.style.border = "none";
-    this.textareaEl.style.outline = "none";
-    this.textareaEl.style.padding = "8px";
-
     this.textareaEl.value = this.inMemoryText;
 
-    // Reset inactivity timer on input
+    // Register active editor shim on focus for mobile toolbar compatibility
+    this.textareaEl.addEventListener("focus", () => {
+      (this.app.workspace as any).activeEditor = this;
+    });
+
+    // Reset inactivity timer and trigger debounced auto-save on input
     this.textareaEl.addEventListener("input", () => {
       this.inMemoryText = this.textareaEl?.value || "";
       this.resetInactivityTimer();
+      this.scheduleAutoSave();
+    });
+
+    // Flush auto-save on blur
+    this.textareaEl.addEventListener("blur", async () => {
+      if ((this.app.workspace as any).activeEditor === this) {
+        (this.app.workspace as any).activeEditor = null;
+      }
+      await this.flushAutoSave();
     });
 
     // Keyboard shortcut Ctrl/Cmd+S to save & encrypt
-    this.textareaEl.addEventListener("keydown", (e: KeyboardEvent) => {
+    this.textareaEl.addEventListener("keydown", async (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        this.saveAndEncrypt();
+        await this.saveAndEncrypt(false);
       }
     });
 
     // Listen to visibility change for mobile app backgrounding
-    this.visibilityHandler = () => {
+    this.visibilityHandler = async () => {
       if (document.visibilityState === "hidden") {
-        this.lockAndClose();
+        await this.lockAndClose();
       }
     };
     document.addEventListener("visibilitychange", this.visibilityHandler);
@@ -140,7 +145,78 @@ export class EncryptedNoteView extends ItemView {
     this.resetInactivityTimer();
   }
 
+  /**
+   * Helper to wrap selected text or insert markdown formatting markers.
+   */
+  private insertFormatting(prefix: string, suffix = prefix, placeholder = "text"): void {
+    if (!this.textareaEl) return;
+    const start = this.textareaEl.selectionStart;
+    const end = this.textareaEl.selectionEnd;
+    const value = this.textareaEl.value;
+    const selected = value.substring(start, end);
+
+    let replacement = "";
+    if (selected.length > 0) {
+      replacement = `${prefix}${selected}${suffix}`;
+    } else {
+      replacement = `${prefix}${placeholder}${suffix}`;
+    }
+
+    this.textareaEl.setRangeText(replacement, start, end, "select");
+    const newCursor = start + prefix.length + (selected.length || placeholder.length);
+    this.textareaEl.setSelectionRange(newCursor, newCursor);
+    this.textareaEl.focus();
+    this.inMemoryText = this.textareaEl.value;
+    this.resetInactivityTimer();
+    this.scheduleAutoSave();
+  }
+
+  /**
+   * Helper to prepend a line prefix (heading, bullet, checkbox, quote) to the current line.
+   */
+  private insertLinePrefix(prefix: string): void {
+    if (!this.textareaEl) return;
+    const start = this.textareaEl.selectionStart;
+    const value = this.textareaEl.value;
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    this.textareaEl.setRangeText(prefix, lineStart, lineStart, "end");
+    this.textareaEl.focus();
+    this.inMemoryText = this.textareaEl.value;
+    this.resetInactivityTimer();
+    this.scheduleAutoSave();
+  }
+
+  /**
+   * Editor interface shim for Obsidian mobile toolbar and command compatibility.
+   */
+  public get editor(): any {
+    return {
+      getSelection: () => {
+        if (!this.textareaEl) return "";
+        return this.textareaEl.value.substring(this.textareaEl.selectionStart, this.textareaEl.selectionEnd);
+      },
+      replaceSelection: (replacement: string) => {
+        if (!this.textareaEl) return;
+        const start = this.textareaEl.selectionStart;
+        const end = this.textareaEl.selectionEnd;
+        this.textareaEl.setRangeText(replacement, start, end, "end");
+        this.inMemoryText = this.textareaEl.value;
+        this.scheduleAutoSave();
+      },
+      getValue: () => this.textareaEl?.value || "",
+      setValue: (val: string) => {
+        if (this.textareaEl) {
+          this.textareaEl.value = val;
+          this.inMemoryText = val;
+          this.scheduleAutoSave();
+        }
+      },
+      focus: () => this.textareaEl?.focus(),
+    };
+  }
+
   async onClose(): Promise<void> {
+    await this.flushAutoSave();
     this.clearTimersAndMemory();
     if (this.visibilityHandler) {
       document.removeEventListener("visibilitychange", this.visibilityHandler);
@@ -159,17 +235,37 @@ export class EncryptedNoteView extends ItemView {
     this.resetInactivityTimer();
   }
 
-  public async saveAndEncrypt(): Promise<void> {
+  private scheduleAutoSave(): void {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+    }
+    this.autoSaveTimer = setTimeout(async () => {
+      this.autoSaveTimer = null;
+      await this.saveAndEncrypt(true);
+    }, 1500);
+  }
+
+  public async flushAutoSave(): Promise<void> {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+      this.autoSaveTimer = null;
+      await this.saveAndEncrypt(true);
+    }
+  }
+
+  public async saveAndEncrypt(silent = false): Promise<void> {
+    if (this.isSaving) return;
     if (!this.file) {
-      new Notice("⚠️ No active file bound to this view.");
+      if (!silent) new Notice("⚠️ No active file bound to this view.");
       return;
     }
 
     if (!this.password) {
-      new Notice("⚠️ Encryption key missing. Cannot encrypt.");
+      if (!silent) new Notice("⚠️ Encryption key missing. Cannot encrypt.");
       return;
     }
 
+    this.isSaving = true;
     try {
       this.inMemoryText = this.textareaEl?.value || "";
       const encryptedArmor = await CryptoManager.encrypt(this.inMemoryText, this.password);
@@ -179,10 +275,23 @@ export class EncryptedNoteView extends ItemView {
       const newFileContent = CryptoManager.formatNote(frontmatterLines, encryptedArmor, true);
 
       await this.app.vault.modify(this.file, newFileContent);
-      new Notice("💾 Note encrypted and saved to disk.");
+      if (!silent) {
+        new Notice("💾 Note encrypted and saved to disk.");
+      }
       this.resetInactivityTimer();
+
+      // Trigger automatic debounced full-note sync
+      if (this.plugin.settings.autoSyncOnSave) {
+        this.plugin.syncManager.scheduleDebouncedSync();
+      }
     } catch (err: any) {
-      new Notice(`❌ Failed to encrypt note: ${err?.message || err}`);
+      if (!silent) {
+        new Notice(`❌ Failed to encrypt note: ${err?.message || err}`);
+      } else {
+        console.error("Auto-save failed in EncryptedNoteView:", err);
+      }
+    } finally {
+      this.isSaving = false;
     }
   }
 
@@ -205,7 +314,7 @@ export class EncryptedNoteView extends ItemView {
       new Notice("🔓 Password protection removed. Note saved in plain Markdown.");
 
       const targetFile = this.file;
-      this.lockAndClose();
+      await this.lockAndClose();
 
       // Open the regular markdown view
       const newLeaf = this.app.workspace.getLeaf(false);
@@ -215,7 +324,8 @@ export class EncryptedNoteView extends ItemView {
     }
   }
 
-  public lockAndClose(): void {
+  public async lockAndClose(): Promise<void> {
+    await this.flushAutoSave();
     this.clearTimersAndMemory();
     new Notice("🔒 Note locked. Memory cleared.");
     this.leaf.detach();
@@ -232,6 +342,10 @@ export class EncryptedNoteView extends ItemView {
   }
 
   private clearTimersAndMemory(): void {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+      this.autoSaveTimer = null;
+    }
     if (this.inactivityTimer) {
       clearTimeout(this.inactivityTimer);
       this.inactivityTimer = null;
