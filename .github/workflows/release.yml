@@ -1,0 +1,101 @@
+name: Release Obsidian Plugin & Extension
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release (e.g. v1.2.0). Leave empty to use package.json version'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Release Tag and Version
+        id: vars
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$(node -p "require('./client/package.json').version")"
+          fi
+          # Ensure tag starts with 'v'
+          if [[ ! "$TAG" =~ ^v ]]; then
+            TAG="v$TAG"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Target Release Tag: $TAG"
+          echo "Target Version: $VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Extract Release Notes from Changelog.md
+        run: |
+          python scripts/extract_changelog.py "${{ steps.vars.outputs.version }}" RELEASE_NOTES.md
+          echo "=== Release Notes Extracted ==="
+          cat RELEASE_NOTES.md
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            client/package-lock.json
+            extension/package-lock.json
+
+      - name: Build Obsidian Client Plugin
+        run: |
+          npm --prefix client ci
+          npm --prefix client run build
+
+      - name: Build Web Extension
+        run: |
+          npm --prefix extension ci
+          npm --prefix extension run build
+
+      - name: Package Web Extension Zip
+        run: |
+          cd extension
+          zip -r "../obsidian-companion-extension-${{ steps.vars.outputs.tag }}.zip" manifest.json popup.html popup.js background.js theme.css
+          cd ..
+          cp "obsidian-companion-extension-${{ steps.vars.outputs.tag }}.zip" obsidian-companion-extension.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Release ${{ steps.vars.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            client/main.js
+            client/manifest.json
+            client/styles.css
+            obsidian-companion-extension-${{ steps.vars.outputs.tag }}.zip
+            obsidian-companion-extension.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
