@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, Notice, ButtonComponent, MarkdownView } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, Notice, ButtonComponent, MarkdownView, Platform } from "obsidian";
 import type ObsidianSyncAiPlugin from "../main";
 import { CryptoManager } from "../crypto/crypto_manager";
 
@@ -49,34 +49,43 @@ export class EncryptedNoteView extends ItemView {
     badge.style.color = "var(--text-accent)";
     badge.style.whiteSpace = "nowrap";
 
-    // Right Action Buttons (Icon-only with tooltips and touch padding)
+    // Right Action Buttons (Desktop displays full text labels for clarity)
     const actionsDiv = topBar.createDiv({ cls: "encrypted-note-actions" });
 
-    // Save & Encrypt Button
-    new ButtonComponent(actionsDiv)
+    // Save & Encrypt Button ("Сохранить")
+    const saveBtn = new ButtonComponent(actionsDiv)
       .setIcon("save")
       .setCta()
-      .setTooltip("Save & Encrypt changes to disk")
-      .onClick(async () => {
-        await this.saveAndEncrypt(false);
-      });
+      .setTooltip("Save & Encrypt changes to disk");
+    if (Platform.isDesktopApp) {
+      saveBtn.setButtonText("Save & Encrypt");
+    }
+    saveBtn.onClick(async () => {
+      await this.saveAndEncrypt(false);
+    });
 
-    // Lock Now Button
-    new ButtonComponent(actionsDiv)
+    // Lock Now Button ("Заблокировать")
+    const lockBtn = new ButtonComponent(actionsDiv)
       .setIcon("lock")
-      .setTooltip("Lock note immediately (Clear memory)")
-      .onClick(async () => {
-        await this.lockAndClose();
-      });
+      .setTooltip("Lock note immediately (Clear memory)");
+    if (Platform.isDesktopApp) {
+      lockBtn.setButtonText("Lock Now");
+    }
+    lockBtn.onClick(async () => {
+      await this.lockAndClose();
+    });
 
-    // Clear Password / Remove Protection Button
-    new ButtonComponent(actionsDiv)
+    // Clear Password / Remove Protection Button ("Снять блокировку")
+    const removeBtn = new ButtonComponent(actionsDiv)
       .setIcon("key")
       .setWarning()
-      .setTooltip("Clear Password & Restore Plain Format")
-      .onClick(async () => {
-        await this.decryptAndRemovePassword();
-      });
+      .setTooltip("Clear Password & Restore Plain Format");
+    if (Platform.isDesktopApp) {
+      removeBtn.setButtonText("Remove Password");
+    }
+    removeBtn.onClick(async () => {
+      await this.decryptAndRemovePassword();
+    });
 
     // Markdown Formatting Toolbar Strip
     const formattingBar = container.createDiv({ cls: "encrypted-note-formatting-bar" });

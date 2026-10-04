@@ -175,6 +175,38 @@ export default class ObsidianSyncAiPlugin extends Plugin {
       })
     );
 
+    // 7. Context Menu Integration (Windows Desktop & Mobile)
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (file instanceof TFile && file.extension === "md") {
+          this.protectedNoteService.isNoteEncrypted(file).then((isEncrypted) => {
+            if (isEncrypted) {
+              menu.addItem((item) => {
+                item
+                  .setTitle("Unlock Protected Note")
+                  .setIcon("lock")
+                  .onClick(() => this.protectedNoteService.promptAndUnlockNote(file));
+              });
+            } else {
+              menu.addItem((item) => {
+                item
+                  .setTitle("Protect Note with Password")
+                  .setIcon("lock")
+                  .onClick(() => this.protectedNoteService.promptAndEncryptNote(file));
+              });
+            }
+          });
+
+          menu.addItem((item) => {
+            item
+              .setTitle("AI Assistant Actions")
+              .setIcon("bot")
+              .onClick(() => this.openMobileActionModal());
+          });
+        }
+      })
+    );
+
     console.log("Obsidian Mobile Sync & AI Plugin loaded successfully.");
   }
 

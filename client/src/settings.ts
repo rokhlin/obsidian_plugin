@@ -8,6 +8,7 @@ export interface PluginSettings {
   autoSyncOnStartup: boolean;
   autoSyncOnSave: boolean;
   aiModel: string;
+  enableCloudSync: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   autoSyncOnStartup: true,
   autoSyncOnSave: true,
   aiModel: "gemini-3.5-flash-lite",
+  enableCloudSync: true,
 };
 
 export class SettingsTab extends PluginSettingTab {
@@ -101,6 +103,18 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     containerEl.createEl("h3", { text: "Synchronization Options" });
+
+    new Setting(containerEl)
+      .setName("Enable Cloud Synchronization")
+      .setDesc("Toggle off if your vault is already synced locally (OneDrive, Syncthing, Dropbox). When disabled, the plugin writes directly to local vault files without network calls.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableCloudSync ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.enableCloudSync = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Auto-Sync on Startup")

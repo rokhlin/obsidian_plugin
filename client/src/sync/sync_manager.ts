@@ -41,6 +41,13 @@ export class SyncManager {
   }
 
   public async performSync(isManual = false): Promise<void> {
+    if (this.plugin.settings.enableCloudSync === false) {
+      if (isManual) {
+        new Notice("ℹ️ Cloud Sync is disabled in settings. Operating in Local Direct Mode.");
+      }
+      return;
+    }
+
     if (this.isSyncing) {
       if (isManual) new Notice("⏳ Synchronization already in progress...");
       return;

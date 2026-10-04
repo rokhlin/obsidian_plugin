@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Obsidian Companion — Sync, AI & Protected Notes",
+  "version": "1.0.0",
+  "description": "Browser companion for self-hosted Obsidian Sync & AI backend with zero-knowledge AES-256 encryption.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Obsidian Companion"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}

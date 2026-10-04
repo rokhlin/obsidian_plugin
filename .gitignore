@@ -23,9 +23,11 @@ data/temp/
 # Node / TypeScript / Obsidian Build
 node_modules/
 client/node_modules/
+extension/node_modules/
 dist/
 client/main.js
 client/client_crypto_test_bundle.js
+client/extension_crypto_test_bundle.js
 
 # Python
 __pycache__/

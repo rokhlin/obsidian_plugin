@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Obsidian Companion</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-brand">
+      <div class="brand-icon">O</div>
+      <span>Obsidian Companion</span>
+    </div>
+    <div class="header-status">
+      <span id="connection-status-dot" class="status-dot" title="Connection status"></span>
+      <button id="btn-toggle-settings" class="icon-button" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Top Navigation Tabs -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-capture">📝 Capture</button>
+    <button class="tab-btn" data-tab="tab-protected">🔒 Protected</button>
+    <button class="tab-btn" data-tab="tab-ai">🤖 AI Tools</button>
+  </nav>
+
+  <!-- Notice Banner -->
+  <div id="notice-banner" style="display:none; padding:6px 12px; font-size:11px; font-weight:600; text-align:center;"></div>
+
+  <!-- TAB 1: QUICK CAPTURE -->
+  <main id="tab-capture" class="tab-content active">
+    <div>
+      <label for="capture-title">Note Title</label>
+      <input type="text" id="capture-title" placeholder="Note_Title.md" value="Quick_Clip.md" />
+    </div>
+
+    <div>
+      <label for="capture-folder">Vault Folder</label>
+      <input type="text" id="capture-folder" placeholder="/Inbox or /Daily" value="/Inbox" />
+    </div>
+
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <label for="capture-body">Markdown Content</label>
+      <textarea id="capture-body" style="flex: 1;" placeholder="Enter markdown note or clip web text..."></textarea>
+    </div>
+
+    <!-- Inline Quick AI Row -->
+    <div class="quick-action-row">
+      <button id="btn-quick-clip-page" class="quick-action-btn" title="Clip selection or page title from active tab">🌐 Clip Tab</button>
+      <button id="btn-capture-meta" class="quick-action-btn" title="Generate frontmatter metadata">🏷️ Meta</button>
+      <button id="btn-capture-fix" class="quick-action-btn" title="Improve text style and fix spelling">✍️ Fix</button>
+    </div>
+
+    <!-- Actions Row -->
+    <div class="btn-row">
+      <button id="btn-save-vault" class="btn-primary">💾 Save to Vault</button>
+      <button id="btn-encrypt-save" class="btn-secondary" style="flex: 1;">🔒 Encrypt &amp; Save</button>
+    </div>
+  </main>
+
+  <!-- TAB 2: PROTECTED NOTES (LOCKED / UNLOCKED) -->
+  <main id="tab-protected" class="tab-content">
+    <!-- Substate A: Locked View -->
+    <div id="protected-locked-view" style="display: flex; flex-direction: column; gap: 12px;">
+      <div>
+        <label for="protected-file-selector">Protected Note File</label>
+        <input type="text" id="protected-file-path" placeholder="Path in vault (e.g. Private/Secrets.md)" value="Private/Encrypted.md" />
+      </div>
+
+      <div class="security-banner">
+        <div class="lock-icon-large">🔒</div>
+        <div style="font-weight: 700; font-size: 14px;">Protected Zero-Knowledge Note</div>
+        <div style="color: var(--text-muted); font-size: 11px;">AES-256-GCM + PBKDF2 (100k Iterations)</div>
+      </div>
+
+      <div>
+        <label for="protected-password-input">Master Passphrase</label>
+        <input type="password" id="protected-password-input" placeholder="Enter passphrase to decrypt..." />
+      </div>
+
+      <button id="btn-unlock-protected" class="btn-primary">🔓 Decrypt into Volatile Memory</button>
+
+      <div class="info-pill">
+        🛡️ <strong>Zero-Knowledge Security:</strong> Plaintext is decrypted strictly in volatile browser memory. It is never stored in browser storage or disk.
+      </div>
+    </div>
+
+    <!-- Substate B: Unlocked View (Full Android Parity) -->
+    <div id="protected-unlocked-view" style="display: none; flex-direction: column; gap: 8px; flex: 1;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span id="unlocked-filename-badge" style="font-weight: 700; color: var(--background-modifier-success); font-size: 12px;">🔒 [Decrypted]</span>
+        <span id="unlocked-timer-badge" style="font-size: 10px; color: #f59e0b; font-weight: bold;">⏱️ 05:00</span>
+      </div>
+
+      <!-- Android Parity Top Actions: Save, Lock, Remove Password -->
+      <div class="btn-row">
+        <button id="btn-unlocked-save" class="btn-primary btn-success" style="flex: 1;" title="Save changes and re-encrypt to vault">💾 Save</button>
+        <button id="btn-unlocked-lock" class="btn-primary btn-danger" style="flex: 1;" title="Wipe volatile memory and lock immediately">🔒 Lock</button>
+        <button id="btn-unlocked-decrypt" class="btn-secondary btn-outline-warning" style="flex: 1.2;" title="Permanently remove encryption">🔓 Decrypt</button>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <textarea id="unlocked-editor-textarea" style="flex: 1; min-height: 220px;" placeholder="Decrypted confidential content..."></textarea>
+      </div>
+
+      <div class="info-pill" style="font-size: 9px;">
+        ⚠️ In-Memory Isolation: Changes persist only when clicking <strong>Save</strong>. Closing popup zeroes volatile memory.
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 3: AI ASSISTANT & CUSTOM PROMPT -->
+  <main id="tab-ai" class="tab-content">
+    <!-- Quick Action Toolbar -->
+    <div class="quick-action-row">
+      <button id="btn-ai-metadata" class="quick-action-btn">🏷️ Metadata</button>
+      <button id="btn-ai-fix" class="quick-action-btn">✍️ Fix Text</button>
+      <button id="btn-ai-voice" class="quick-action-btn">🎙️ Voice Note</button>
+    </div>
+
+    <div>
+      <label for="ai-prompt-input">Custom AI Prompt (Strict Markdown Output):</label>
+      <textarea id="ai-prompt-input" style="min-height: 60px;" placeholder="e.g. Summarize active page into a clean markdown checklist..."></textarea>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 10px; color: var(--text-muted);">Active tab context included</span>
+      <button id="btn-send-ai-prompt" class="btn-primary" style="width: auto; padding: 6px 14px;">⚡ Send Query</button>
+    </div>
+
+    <!-- Live SSE Streaming Response Container -->
+    <div>
+      <label>Live SSE Streaming Response:</label>
+      <div id="ai-response-container" class="response-container">Ready. Enter prompt or click an action above.</div>
+    </div>
+
+    <button id="btn-insert-ai-response" class="btn-primary">📥 Insert into Active Note</button>
+  </main>
+
+  <!-- SETTINGS MODAL / PANEL -->
+  <main id="tab-settings" class="tab-content">
+    <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px;">Extension &amp; Sync Settings</div>
+
+    <div>
+      <label for="settings-server-url">Backend Server URL</label>
+      <input type="text" id="settings-server-url" placeholder="https://ob.alltogo.net" value="https://ob.alltogo.net" />
+    </div>
+
+    <div>
+      <label for="settings-auth-token">Authentication Token (AUTH_TOKEN)</label>
+      <input type="password" id="settings-auth-token" placeholder="Bearer Token from data/config/.env" />
+    </div>
+
+    <button id="btn-test-connection" class="btn-secondary" style="margin-top: 4px;">🔍 Test Connection &amp; Auth</button>
+
+    <div style="margin-top: 10px;">
+      <button id="btn-save-settings" class="btn-primary">Save Settings</button>
+    </div>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

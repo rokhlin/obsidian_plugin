@@ -1,0 +1,14 @@
+{
+  "name": "obsidian-companion-extension",
+  "version": "1.0.0",
+  "description": "Chrome/Firefox Manifest V3 Extension for Obsidian Sync, AI & Zero-Knowledge Protected Notes",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.3"
+  }
+}

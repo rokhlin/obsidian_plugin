@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "test": "esbuild src/crypto/crypto_manager.ts --bundle --format=esm --outfile=client_crypto_test_bundle.js && node --test tests/test_crypto.mjs"
+    "test": "esbuild src/crypto/crypto_manager.ts --bundle --format=esm --outfile=client_crypto_test_bundle.js && esbuild ../extension/crypto/ext_crypto.ts --bundle --format=esm --outfile=extension_crypto_test_bundle.js && node --test tests/test_crypto.mjs tests/test_cross_platform_crypto.mjs"
   },
   "keywords": [
     "obsidian",
