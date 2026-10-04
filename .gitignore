@@ -28,6 +28,7 @@ dist/
 client/main.js
 client/client_crypto_test_bundle.js
 client/extension_crypto_test_bundle.js
+client/client_sync_test_bundle.js
 RELEASE_NOTES.md
 *.zip
 

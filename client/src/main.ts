@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView, Notice, TFile } from "obsidian";
+import { Plugin, MarkdownView, Notice, TFile, TFolder } from "obsidian";
 import { PluginSettings, DEFAULT_SETTINGS, SettingsTab } from "./settings";
 import { SyncManager } from "./sync/sync_manager";
 import { AiService } from "./ai/ai_service";
@@ -16,6 +16,7 @@ export default class ObsidianSyncAiPlugin extends Plugin {
     await this.loadSettings();
 
     this.syncManager = new SyncManager(this.app, this);
+    await this.syncManager.loadSyncState();
     this.aiService = new AiService(this.app, this);
     this.protectedNoteService = new ProtectedNoteService(this.app, this);
 
@@ -139,7 +140,7 @@ export default class ObsidianSyncAiPlugin extends Plugin {
       },
     });
 
-    // 4. File Watchers for Debounced Auto-Sync & Tombstones
+    // 4. File Watchers for Debounced Auto-Sync & Tombstones (Modify, Delete, Rename/Move)
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile && this.settings.autoSyncOnSave) {
@@ -152,6 +153,18 @@ export default class ObsidianSyncAiPlugin extends Plugin {
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile) {
           this.syncManager.recordLocalDeletion(file.path);
+        } else if (file instanceof TFolder) {
+          this.syncManager.recordLocalFolderDeletion(file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile) {
+          this.syncManager.recordLocalRename(oldPath, file.path);
+        } else if (file instanceof TFolder) {
+          this.syncManager.recordLocalFolderRename(oldPath, file.path);
         }
       })
     );

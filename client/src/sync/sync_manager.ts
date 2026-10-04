@@ -15,15 +15,148 @@ export class SyncManager {
   private debounceTimer: number | null = null;
   private localStateCache: Record<string, LocalFileState> = {};
   private localTombstones: Set<string> = new Set();
+  private lastSyncedFiles: Record<string, string> = {};
 
   constructor(app: App, plugin: ObsidianSyncAiPlugin) {
     this.app = app;
     this.plugin = plugin;
   }
 
+  private getSyncStatePath(): string {
+    const dir = this.plugin?.manifest?.dir || ".obsidian/plugins/obsidian-sync-ai";
+    return `${dir}/.sync-state.json`;
+  }
+
+  public async loadSyncState(): Promise<void> {
+    try {
+      const statePath = this.getSyncStatePath();
+      if (this.app?.vault?.adapter && (await this.app.vault.adapter.exists(statePath))) {
+        const raw = await this.app.vault.adapter.read(statePath);
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.tombstones)) {
+          for (const t of data.tombstones) {
+            if (typeof t === "string") this.localTombstones.add(t);
+          }
+        }
+        if (data.lastSyncedFiles && typeof data.lastSyncedFiles === "object") {
+          this.lastSyncedFiles = data.lastSyncedFiles;
+        }
+      }
+    } catch (err) {
+      console.warn("Could not load sync state from disk:", err);
+    }
+
+    // Reconcile offline moves/deletes: if a tracked file disappeared from vault, tombstone it
+    if (this.app?.vault?.getAbstractFileByPath) {
+      for (const trackedPath of Object.keys(this.lastSyncedFiles)) {
+        if (!this.app.vault.getAbstractFileByPath(trackedPath)) {
+          this.localTombstones.add(trackedPath);
+        }
+      }
+    }
+
+    // Sanitize: ensure no actively existing markdown file is mistakenly tombstoned
+    if (this.app?.vault?.getMarkdownFiles) {
+      const activeFiles = this.app.vault.getMarkdownFiles();
+      for (const f of activeFiles) {
+        if (this.localTombstones.has(f.path)) {
+          this.localTombstones.delete(f.path);
+        }
+      }
+    }
+  }
+
+  public async saveSyncState(): Promise<void> {
+    try {
+      if (this.app?.vault?.adapter) {
+        const statePath = this.getSyncStatePath();
+        const dir = this.plugin?.manifest?.dir || ".obsidian/plugins/obsidian-sync-ai";
+        if (!(await this.app.vault.adapter.exists(dir))) {
+          await this.app.vault.adapter.mkdir(dir);
+        }
+        const data = {
+          tombstones: Array.from(this.localTombstones),
+          lastSyncedFiles: this.lastSyncedFiles,
+        };
+        await this.app.vault.adapter.write(statePath, JSON.stringify(data, null, 2));
+      }
+    } catch (err) {
+      console.warn("Could not save sync state to disk:", err);
+    }
+  }
+
   public recordLocalDeletion(path: string): void {
     this.localTombstones.add(path);
     delete this.localStateCache[path];
+    this.saveSyncState().catch(() => {});
+    if (this.plugin.settings.autoSyncOnSave) {
+      this.scheduleDebouncedSync();
+    }
+  }
+
+  public recordLocalFolderDeletion(folderPath: string): void {
+    const prefix = folderPath.endsWith("/") ? folderPath : folderPath + "/";
+    const affectedPaths = new Set<string>();
+
+    for (const key of Object.keys(this.localStateCache)) {
+      if (key.startsWith(prefix)) affectedPaths.add(key);
+    }
+    for (const key of Object.keys(this.lastSyncedFiles)) {
+      if (key.startsWith(prefix)) affectedPaths.add(key);
+    }
+    for (const p of affectedPaths) {
+      this.localTombstones.add(p);
+      delete this.localStateCache[p];
+    }
+    this.saveSyncState().catch(() => {});
+    if (this.plugin.settings.autoSyncOnSave) {
+      this.scheduleDebouncedSync();
+    }
+  }
+
+  public recordLocalRename(oldPath: string, newPath: string): void {
+    this.localTombstones.add(oldPath);
+    delete this.localStateCache[oldPath];
+    this.localTombstones.delete(newPath);
+
+    this.saveSyncState().catch(() => {});
+    if (this.plugin.settings.autoSyncOnSave) {
+      this.scheduleDebouncedSync();
+    }
+  }
+
+  public recordLocalFolderRename(oldFolderPath: string, newFolderPath: string): void {
+    const oldPrefix = oldFolderPath.endsWith("/") ? oldFolderPath : oldFolderPath + "/";
+    const newPrefix = newFolderPath.endsWith("/") ? newFolderPath : newFolderPath + "/";
+
+    // 1. Files currently in vault under newPrefix
+    if (this.app?.vault?.getMarkdownFiles) {
+      const currentFiles = this.app.vault.getMarkdownFiles();
+      for (const file of currentFiles) {
+        if (file.path.startsWith(newPrefix)) {
+          const relPath = file.path.substring(newPrefix.length);
+          const oldFilePath = oldPrefix + relPath;
+          this.localTombstones.add(oldFilePath);
+          delete this.localStateCache[oldFilePath];
+          this.localTombstones.delete(file.path);
+        }
+      }
+    }
+
+    // 2. Previously cached or tracked files under oldPrefix
+    const affectedOldPaths = new Set<string>();
+    for (const key of Object.keys(this.localStateCache)) {
+      if (key.startsWith(oldPrefix)) affectedOldPaths.add(key);
+    }
+    for (const key of Object.keys(this.lastSyncedFiles)) {
+      if (key.startsWith(oldPrefix)) affectedOldPaths.add(key);
+    }
+    for (const oldFilePath of affectedOldPaths) {
+      this.localTombstones.add(oldFilePath);
+      delete this.localStateCache[oldFilePath];
+    }
+
+    this.saveSyncState().catch(() => {});
     if (this.plugin.settings.autoSyncOnSave) {
       this.scheduleDebouncedSync();
     }
@@ -102,6 +235,11 @@ export class SyncManager {
       const clientFiles: Record<string, string> = {};
 
       for (const file of markdownFiles) {
+        // Ensure no actively present vault file is marked as deleted
+        if (this.localTombstones.has(file.path)) {
+          this.localTombstones.delete(file.path);
+        }
+
         const path = file.path;
         const currentMtime = file.stat.mtime;
         const currentSize = file.stat.size;
@@ -140,6 +278,7 @@ export class SyncManager {
       if (Array.isArray(acknowledgedDeletions)) {
         for (const ackPath of acknowledgedDeletions) {
           this.localTombstones.delete(ackPath);
+          delete this.lastSyncedFiles[ackPath];
         }
       }
 
@@ -212,6 +351,20 @@ export class SyncManager {
           }
         }
       }
+
+      // 6. Update lastSyncedFiles snapshot and persist sync state
+      const finalMarkdownFiles = this.app.vault.getMarkdownFiles();
+      const updatedLastSynced: Record<string, string> = {};
+      for (const f of finalMarkdownFiles) {
+        const cached = this.localStateCache[f.path];
+        if (cached) {
+          updatedLastSynced[f.path] = cached.hash;
+        } else if (clientFiles[f.path]) {
+          updatedLastSynced[f.path] = clientFiles[f.path];
+        }
+      }
+      this.lastSyncedFiles = updatedLastSynced;
+      await this.saveSyncState();
 
       const uploadCount = toUpload ? toUpload.length : 0;
       const downloadCount = toDownload ? toDownload.length : 0;
