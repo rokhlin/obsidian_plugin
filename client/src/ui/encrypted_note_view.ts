@@ -56,9 +56,10 @@ export class EncryptedNoteView extends ItemView {
     const saveBtn = new ButtonComponent(actionsDiv)
       .setIcon("save")
       .setCta()
-      .setTooltip("Save & Encrypt changes to disk");
+      .setTooltip("Save & Encrypt changes to disk (Ctrl/Cmd+S)");
     if (Platform.isDesktopApp) {
-      saveBtn.setButtonText("Save & Encrypt");
+      saveBtn.buttonEl.addClass("encrypted-action-btn-desktop");
+      saveBtn.buttonEl.createSpan({ cls: "encrypted-action-btn-label", text: "Save & Encrypt" });
     }
     saveBtn.onClick(async () => {
       await this.saveAndEncrypt(false);
@@ -69,7 +70,8 @@ export class EncryptedNoteView extends ItemView {
       .setIcon("lock")
       .setTooltip("Lock note immediately (Clear memory)");
     if (Platform.isDesktopApp) {
-      lockBtn.setButtonText("Lock Now");
+      lockBtn.buttonEl.addClass("encrypted-action-btn-desktop");
+      lockBtn.buttonEl.createSpan({ cls: "encrypted-action-btn-label", text: "Lock Now" });
     }
     lockBtn.onClick(async () => {
       await this.lockAndClose();
@@ -81,7 +83,8 @@ export class EncryptedNoteView extends ItemView {
       .setWarning()
       .setTooltip("Clear Password & Restore Plain Format");
     if (Platform.isDesktopApp) {
-      removeBtn.setButtonText("Remove Password");
+      removeBtn.buttonEl.addClass("encrypted-action-btn-desktop");
+      removeBtn.buttonEl.createSpan({ cls: "encrypted-action-btn-label", text: "Remove Password" });
     }
     removeBtn.onClick(async () => {
       await this.decryptAndRemovePassword();
