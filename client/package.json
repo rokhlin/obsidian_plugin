@@ -1,6 +1,6 @@
 {
   "name": "obsidian-sync-ai",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Zero-loss synchronization to self-hosted server, zero-knowledge encryption, and AI writing/voice assistant for Obsidian Android & Windows Desktop.",
   "main": "main.js",
   "scripts": {
