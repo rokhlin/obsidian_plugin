@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-04
+
 ## [1.3.0] - 2026-10-04
 
 ### Fixed
-- **File Move / Rename Synchronization Duplication (BUG-003)**:
+- **File Move / Rename Synchroni
+zation Duplication (BUG-003)**:
   - Registered Obsidian `vault.on("rename")` listener in `main.ts` to ensure moved or renamed notes are tracked and their former paths recorded as client tombstones (`deletedOnClient`).
   - Added recursive child file tombstone tracking for folder renames (`recordLocalFolderRename`) and folder deletions (`recordLocalFolderDeletion`).
   - Implemented persistent sync state (`.sync-state.json`) reconciling offline file moves and deletions across Obsidian restarts while sanitizing active vault files to prevent accidental deletions.
