@@ -154,7 +154,34 @@ export class EncryptedNoteView extends ItemView {
     };
     document.addEventListener("visibilitychange", this.visibilityHandler);
 
+    this.registerEvent(
+      this.app.vault.on("modify", async (file) => {
+        if (file instanceof TFile && this.file && file.path === this.file.path) {
+          if (!this.isSaving) {
+            await this.reloadData();
+          }
+        }
+      })
+    );
+
     this.resetInactivityTimer();
+  }
+
+  public async reloadData(): Promise<void> {
+    if (!this.file || !this.password) return;
+    try {
+      const rawFileContent = await this.app.vault.read(this.file);
+      const { encryptedArmor } = CryptoManager.splitFrontmatterAndBody(rawFileContent);
+      if (encryptedArmor) {
+        const decryptedText = await CryptoManager.decrypt(encryptedArmor, this.password);
+        this.inMemoryText = decryptedText;
+        if (this.textareaEl) {
+            this.textareaEl.value = decryptedText;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to reload encrypted note data:", e);
+    }
   }
 
   /**

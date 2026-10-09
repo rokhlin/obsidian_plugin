@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 class SyncStatusRequest(BaseModel):
     clientFiles: Dict[str, str] = Field(default_factory=dict, description="Map of relative file path to client xxHash")
+    lastSyncedFiles: Dict[str, str] = Field(default_factory=dict, description="Map of relative file path to client's last known server xxHash")
     deletedOnClient: List[str] = Field(default_factory=list, description="List of files deleted locally on the client")
 
 
@@ -12,6 +13,7 @@ class SyncStatusResponse(BaseModel):
     toDownload: List[str] = Field(default_factory=list, description="Files on server needed by client")
     toUpload: List[str] = Field(default_factory=list, description="Files on client needed by server")
     acknowledgedDeletions: List[str] = Field(default_factory=list, description="Deletions processed and archived on server")
+    serverDeletions: List[str] = Field(default_factory=list, description="Files deleted on server to be deleted by client")
 
 
 class SyncFilePayload(BaseModel):

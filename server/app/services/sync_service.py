@@ -70,16 +70,33 @@ class SyncService:
                 del server_manifest[norm_path]
 
         to_upload: List[str] = []
+        server_deletions: List[str] = []
+        to_download: List[str] = []
+        
         # Compare client files with server manifest
         for client_path, client_hash in request.clientFiles.items():
             norm_path = client_path.replace("\\", "/").strip("/")
+            last_sync_hash = request.lastSyncedFiles.get(client_path)
+            
             if norm_path not in server_manifest:
-                to_upload.append(norm_path)
-            elif server_manifest[norm_path]["hash"] != client_hash:
-                to_upload.append(norm_path)
+                # File is on client, but not on server
+                if last_sync_hash and client_hash == last_sync_hash:
+                    # Client hasn't modified it since last sync, meaning server deleted it
+                    server_deletions.append(norm_path)
+                else:
+                    # Client created or modified it
+                    to_upload.append(norm_path)
+            else:
+                server_hash = server_manifest[norm_path]["hash"]
+                if server_hash != client_hash:
+                    if client_hash == last_sync_hash:
+                        # Client hasn't modified it, but server has -> download
+                        to_download.append(norm_path)
+                    else:
+                        # Client modified it (and server may have too) -> upload (client wins, server handles conflict archiving)
+                        to_upload.append(norm_path)
 
-        to_download: List[str] = []
-        # Files on server that client does not have and hasn't deleted
+        # Files on server that client does not have
         for server_path, server_data in server_manifest.items():
             if server_path not in request.clientFiles and server_path not in acknowledged_deletions:
                 to_download.append(server_path)
@@ -89,6 +106,7 @@ class SyncService:
             toDownload=sorted(to_download),
             toUpload=sorted(to_upload),
             acknowledgedDeletions=sorted(acknowledged_deletions),
+            serverDeletions=sorted(server_deletions)
         )
 
     async def process_upload(self, request: SyncUploadRequest) -> SyncUploadResponse:

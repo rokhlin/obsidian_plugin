@@ -255,7 +255,6 @@ export class SyncManager {
         }
       }
 
-      // 2. Status Handshake
       const deletedOnClient = Array.from(this.localTombstones);
       const statusResp = await requestUrl({
         url: `${serverUrl}/api/sync/status`,
@@ -265,20 +264,37 @@ export class SyncManager {
           Authorization: `Bearer ${authToken}`,
           "X-Auth-Token": authToken,
         },
-        body: JSON.stringify({ clientFiles, deletedOnClient }),
+        body: JSON.stringify({ 
+          clientFiles, 
+          lastSyncedFiles: this.lastSyncedFiles, 
+          deletedOnClient 
+        }),
       });
 
       if (statusResp.status !== 200) {
         throw new Error(`Sync status check returned HTTP ${statusResp.status}`);
       }
 
-      const { toDownload, toUpload, acknowledgedDeletions } = statusResp.json;
+      const { toDownload, toUpload, acknowledgedDeletions, serverDeletions } = statusResp.json;
 
       // 3. Clear acknowledged deletions
       if (Array.isArray(acknowledgedDeletions)) {
         for (const ackPath of acknowledgedDeletions) {
           this.localTombstones.delete(ackPath);
           delete this.lastSyncedFiles[ackPath];
+        }
+      }
+
+      // 3.5. Process server deletions
+      if (Array.isArray(serverDeletions)) {
+        for (const delPath of serverDeletions) {
+          const file = this.app.vault.getAbstractFileByPath(delPath);
+          if (file instanceof TFile || file instanceof TFolder) {
+            await this.app.vault.trash(file, false);
+          }
+          delete this.lastSyncedFiles[delPath];
+          delete this.localStateCache[delPath];
+          this.localTombstones.delete(delPath);
         }
       }
 
